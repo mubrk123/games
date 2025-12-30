@@ -1,0 +1,192 @@
+You are a senior full-stack architect and betting-exchange system engineer with deep experience in:
+Sports betting exchanges
+Casino games (Teen Patti, Ludo, card & number games)
+Wallet & exposure systems
+Odds feed integrations
+High-scale admin panels
+I want you to build a COMPLETE betting platform (frontend + backend + admin panel) that is logically and functionally complete, even if UI is basic.
+1. CORE PRINCIPLES (STRICT)
+Admin can ONLY add wallet points manually
+Admin CANNOT manually deduct winnings/losses
+Admin wallet credit is done offline (WhatsApp / cash / crypto)
+ALL bet settlement, deductions, and winnings MUST be automatic
+Odds MUST be automatic
+Pulled from external feeds OR simulated via service abstraction
+Admin has full control but NOT manual cheating power
+Platform must support Sports + Casino-style games
+2. PLATFORM TYPE
+Build a unified betting exchange + gaming platform with:
+Sports Betting
+Cricket
+Football
+Tennis
+Basketball
+Any live sport supported by odds feed
+Casino / Games
+Teen Patti
+Andar Bahar
+Ludo betting
+Dice / Number games
+Simple card-based games
+3. TECH STACK (MANDATORY)
+Frontend
+React.js (Next.js or Vite)
+Tailwind CSS
+Axios
+Socket.IO client
+Backend
+Node.js
+Express.js
+Socket.IO
+JWT Authentication
+bcrypt hashing
+Modular service architecture
+Database
+PostgreSQL (preferred) OR MongoDB
+Redis (for live odds, sessions, game state)
+4. USER ROLES
+USER
+View live matches & games
+Place bets
+View wallet balance
+View exposure
+View bet & game history
+ADMIN
+Create / block users
+Add wallet points manually
+Control odds feeds
+Enable / disable games
+Set margins & commissions
+Settle matches (result confirmation only)
+View P&L, exposure, reports
+Create sub-admins / agents
+5. WALLET & EXPOSURE SYSTEM (CRITICAL)
+Each user has:
+wallet_balance
+exposure
+Rules:
+User can place bet only if wallet allows max possible loss
+Exposure is locked immediately
+Wallet is updated ONLY by system logic
+Admin can NEVER force win/loss
+Settlement:
+Win → wallet increases automatically
+Loss → wallet decreases automatically
+Draw / cancel → exposure released
+All wallet updates must be atomic and transaction-safe
+6. ODDS SYSTEM (AUTOMATIC)
+Implement Odds Feed Abstraction Layer:
+OddsProviderService
+Supports:
+External APIs (SportRadar, BetFair, etc.)
+Mock provider for testing
+Auto updates odds via Socket.IO
+Handles:
+Suspended markets
+Odds drift
+Invalid bet rejection
+Admin can:
+Enable / disable feeds
+Adjust margin
+Suspend markets
+7. BETTING FLOW (SPORTS)
+Fetch live matches automatically
+Display odds in real-time
+User places bet
+Backend validates:
+Match live
+Odds current
+Wallet sufficient
+Exposure locked
+Bet saved as OPEN
+On result:
+System settles bet
+Wallet updated automatically
+Exposure released
+8. CASINO / GAME SYSTEM
+Each game must have:
+Game engine service
+RNG-based result generator
+Server-side fairness logic
+Round-based betting
+Examples:
+Teen Patti → card shuffle + hand ranking
+Ludo → dice roll betting
+Dice → number outcome
+Admin can:
+Enable / disable games
+Set house edge
+View per-game P&L
+9. ADMIN PANEL (FULL FEATURED)
+Admin dashboard must include:
+User Management
+Create / suspend users
+Manual wallet credit ONLY
+View user exposure
+Betting Control
+Live matches list
+Odds monitor
+Market suspension
+Game Control
+Enable / disable games
+RTP / margin control
+Reports
+User-wise P&L
+Match-wise P&L
+Game-wise P&L
+Daily / weekly summaries
+System
+Logs
+Audit trails
+Role permissions
+10. DATABASE DESIGN
+Provide complete schemas for:
+Users
+Wallets
+Matches
+Markets
+Odds
+Bets
+Games
+Game rounds
+Wallet transactions
+Admin logs
+Include indexes and relations.
+11. PROJECT STRUCTURE (MANDATORY)
+Generate:
+Full backend folder structure
+Full frontend folder structure
+Admin panel routes & pages
+Services, controllers, models
+Socket handlers
+Middleware
+Environment configs
+Every file must be shown with full code
+12. API DESIGN
+REST APIs
+Clear route naming
+Role-based protection
+Input validation
+Separation of concerns
+13. DEPLOYMENT READY
+.env usage
+Local setup instructions
+Production safe defaults
+Docker optional but preferred
+14. OUTPUT RULES (VERY IMPORTANT)
+You MUST:
+Output the ENTIRE codebase
+Show every file path
+Do NOT skip logic
+Do NOT simplify wallet or betting logic
+Code must be clean, scalable, editable
+15. FINAL CONSTRAINTS
+❌ No payment gateway
+❌ No manual admin bet settlement
+✅ Auto odds
+✅ Auto settlement
+✅ Admin wallet credit only
+✅ Sports + casino games
+✅ Full admin panel
+START BUILDING THE COMPLETE PROJECT NOW
+✅ END OF PROMPT
