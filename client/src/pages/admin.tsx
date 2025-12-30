@@ -3,30 +3,114 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, Users, Wallet, Activity, AlertTriangle, Lock, Search, UserPlus } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { ShieldCheck, Users, Wallet, Activity, AlertTriangle, Lock, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { api } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function AdminPanel() {
-  const { users, bets, registerUser, addFunds } = useStore();
   const [newUserOpen, setNewUserOpen] = useState(false);
   const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [initialBalance, setInitialBalance] = useState("0");
   const [creditAmount, setCreditAmount] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch all users
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: async () => {
+      const result = await api.getAllUsers();
+      return result.users;
+    },
+    refetchInterval: 5000,
+  });
+
+  // Fetch all bets
+  const { data: betsData, isLoading: betsLoading } = useQuery({
+    queryKey: ['admin-bets'],
+    queryFn: async () => {
+      const result = await api.getAllBets();
+      return result.bets;
+    },
+    refetchInterval: 5000,
+  });
+
+  const users = usersData || [];
+  const bets = betsData || [];
+
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: async (data: { username: string, password: string, balance: string }) => {
+      return await api.createUser({
+        username: data.username,
+        password: data.password,
+        role: 'USER',
+        balance: data.balance
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setNewUserOpen(false);
+      setNewUsername("");
+      setNewPassword("");
+      setInitialBalance("0");
+      toast({
+        title: "User Created",
+        description: `User created successfully.`,
+        className: "bg-green-600 text-white border-none"
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create user",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Add credit mutation
+  const addCreditMutation = useMutation({
+    mutationFn: async (data: { userId: string, amount: number }) => {
+      return await api.addCredit(data.userId, data.amount);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setCreditAmount("");
+      setSelectedUserId("");
+      toast({
+        title: "Credit Added",
+        description: "Wallet updated successfully",
+        className: "bg-green-600 text-white border-none"
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add credit",
+        variant: "destructive"
+      });
+    }
+  });
 
   const handleCreateUser = () => {
-    if (!newUsername) return;
-    registerUser(newUsername, Number(initialBalance));
-    setNewUserOpen(false);
-    setNewUsername("");
-    setInitialBalance("0");
-    toast({
-      title: "User Created",
-      description: `User ${newUsername} added successfully.`
+    if (!newUsername || !newPassword) {
+      toast({
+        title: "Error",
+        description: "Username and password are required",
+        variant: "destructive"
+      });
+      return;
+    }
+    createUserMutation.mutate({
+      username: newUsername,
+      password: newPassword,
+      balance: initialBalance
     });
   };
 
@@ -35,18 +119,31 @@ export default function AdminPanel() {
       toast({ title: "Error", description: "Select User ID and enter amount", variant: "destructive" });
       return;
     }
-    addFunds(selectedUserId, Number(creditAmount));
-    setCreditAmount("");
-    setSelectedUserId("");
-    toast({
-      title: "Credit Added",
-      description: "Wallet updated successfully",
-      className: "bg-green-600 text-white"
+    addCreditMutation.mutate({
+      userId: selectedUserId,
+      amount: Number(creditAmount)
     });
   };
 
   // Filter only 'USER' role for the table
   const clientUsers = users.filter(u => u.role === 'USER');
+
+  // Calculate stats
+  const totalExposure = clientUsers.reduce((acc, u) => acc + parseFloat(u.exposure || '0'), 0);
+  const totalBalance = clientUsers.reduce((acc, u) => acc + parseFloat(u.balance), 0);
+
+  if (usersLoading || betsLoading) {
+    return (
+      <AppShell>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+            <p className="mt-4 text-muted-foreground">Loading admin data...</p>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -59,7 +156,9 @@ export default function AdminPanel() {
           <div className="flex gap-2 w-full sm:w-auto">
             <Dialog open={newUserOpen} onOpenChange={setNewUserOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2 bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none"><UserPlus className="w-4 h-4" /> Create User</Button>
+                <Button data-testid="button-create-user" className="gap-2 bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none">
+                  <UserPlus className="w-4 h-4" /> Create User
+                </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -68,13 +167,40 @@ export default function AdminPanel() {
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Username</label>
-                    <Input value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="e.g. player123" />
+                    <Input 
+                      data-testid="input-new-username"
+                      value={newUsername} 
+                      onChange={e => setNewUsername(e.target.value)} 
+                      placeholder="e.g. player123" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Password</label>
+                    <Input 
+                      data-testid="input-new-password"
+                      type="password"
+                      value={newPassword} 
+                      onChange={e => setNewPassword(e.target.value)} 
+                      placeholder="User password" 
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Initial Balance</label>
-                    <Input type="number" value={initialBalance} onChange={e => setInitialBalance(e.target.value)} />
+                    <Input 
+                      data-testid="input-initial-balance"
+                      type="number" 
+                      value={initialBalance} 
+                      onChange={e => setInitialBalance(e.target.value)} 
+                    />
                   </div>
-                  <Button className="w-full" onClick={handleCreateUser}>Create Account</Button>
+                  <Button 
+                    data-testid="button-submit-create-user"
+                    className="w-full" 
+                    onClick={handleCreateUser}
+                    disabled={createUserMutation.isPending}
+                  >
+                    {createUserMutation.isPending ? 'Creating...' : 'Create Account'}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -90,8 +216,8 @@ export default function AdminPanel() {
               <ShieldCheck className="w-4 h-4 text-orange-500" />
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <div className="text-xl sm:text-2xl font-bold font-mono truncate">
-                ₹ {clientUsers.reduce((acc, u) => acc + u.exposure, 0).toLocaleString()}
+              <div className="text-xl sm:text-2xl font-bold font-mono truncate" data-testid="stat-exposure">
+                ₹ {totalExposure.toLocaleString()}
               </div>
             </CardContent>
           </Card>
@@ -101,7 +227,7 @@ export default function AdminPanel() {
               <Users className="w-4 h-4 text-blue-500" />
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <div className="text-xl sm:text-2xl font-bold font-mono">{clientUsers.length}</div>
+              <div className="text-xl sm:text-2xl font-bold font-mono" data-testid="stat-users">{clientUsers.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-card/50 border-orange-500/20">
@@ -110,7 +236,7 @@ export default function AdminPanel() {
               <Activity className="w-4 h-4 text-purple-500" />
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <div className="text-xl sm:text-2xl font-bold font-mono">{bets.length}</div>
+              <div className="text-xl sm:text-2xl font-bold font-mono" data-testid="stat-bets">{bets.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-card/50 border-orange-500/20">
@@ -119,8 +245,8 @@ export default function AdminPanel() {
               <Wallet className="w-4 h-4 text-green-500" />
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <div className="text-xl sm:text-2xl font-bold font-mono text-green-500 truncate">
-                ₹ {clientUsers.reduce((acc, u) => acc + u.balance, 0).toLocaleString()}
+              <div className="text-xl sm:text-2xl font-bold font-mono text-green-500 truncate" data-testid="stat-balance">
+                ₹ {totalBalance.toLocaleString()}
               </div>
             </CardContent>
           </Card>
@@ -138,6 +264,7 @@ export default function AdminPanel() {
                 <span className="text-xs font-bold text-muted-foreground uppercase whitespace-nowrap">Manual Credit</span>
                 <div className="flex gap-2 w-full sm:w-auto">
                     <select 
+                      data-testid="select-user"
                       className="h-8 flex-1 sm:w-[150px] bg-background border rounded text-xs px-2"
                       value={selectedUserId}
                       onChange={(e) => setSelectedUserId(e.target.value)}
@@ -148,13 +275,22 @@ export default function AdminPanel() {
                       ))}
                     </select>
                     <Input 
+                      data-testid="input-credit-amount"
                       placeholder="Amt" 
                       className="h-8 w-20" 
                       type="number" 
                       value={creditAmount}
                       onChange={e => setCreditAmount(e.target.value)}
                     />
-                    <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700" onClick={handleAddCredit}>Add</Button>
+                    <Button 
+                      data-testid="button-add-credit"
+                      size="sm" 
+                      className="h-8 bg-green-600 hover:bg-green-700" 
+                      onClick={handleAddCredit}
+                      disabled={addCreditMutation.isPending}
+                    >
+                      {addCreditMutation.isPending ? 'Adding...' : 'Add'}
+                    </Button>
                 </div>
               </div>
             </CardHeader>
@@ -162,21 +298,25 @@ export default function AdminPanel() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User ID</TableHead>
                     <TableHead>Username</TableHead>
                     <TableHead>Balance</TableHead>
                     <TableHead>Exposure</TableHead>
+                    <TableHead>W/L</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {clientUsers.map(u => (
-                    <TableRow key={u.id}>
-                      <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">{u.id}</TableCell>
+                    <TableRow key={u.id} data-testid={`user-row-${u.username}`}>
                       <TableCell className="font-medium">{u.username}</TableCell>
-                      <TableCell className="font-mono whitespace-nowrap">₹ {u.balance.toLocaleString()}</TableCell>
+                      <TableCell className="font-mono whitespace-nowrap" data-testid={`balance-${u.username}`}>
+                        ₹ {parseFloat(u.balance).toLocaleString()}
+                      </TableCell>
                       <TableCell className="font-mono text-destructive whitespace-nowrap">
-                        {u.exposure > 0 ? `- ₹ ${u.exposure.toLocaleString()}` : '-'}
+                        {parseFloat(u.exposure || '0') > 0 ? `- ₹ ${parseFloat(u.exposure).toLocaleString()}` : '-'}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        <span className="text-green-500">{u.wonBets || 0}W</span> / <span className="text-red-500">{u.lostBets || 0}L</span>
                       </TableCell>
                       <TableCell className="text-right">
                          <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
@@ -201,9 +341,6 @@ export default function AdminPanel() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="whitespace-nowrap">Time</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead className="whitespace-nowrap">Match</TableHead>
-                    <TableHead>Selection</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Odds</TableHead>
                     <TableHead>Stake</TableHead>
@@ -213,26 +350,29 @@ export default function AdminPanel() {
                 <TableBody>
                   {bets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground">No bets placed yet</TableCell>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">No bets placed yet</TableCell>
                     </TableRow>
                   ) : (
                     bets.map(bet => (
-                      <TableRow key={bet.id}>
+                      <TableRow key={bet.id} data-testid={`bet-row-${bet.id}`}>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(bet.timestamp).toLocaleTimeString()}
+                          {new Date(bet.createdAt).toLocaleTimeString()}
                         </TableCell>
-                        <TableCell className="font-medium">{bet.userName}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{bet.matchName}</TableCell>
-                        <TableCell className="whitespace-nowrap">{bet.selectionName}</TableCell>
                         <TableCell>
-                          <span className={bet.type === 'BACK' ? "text-blue-500 font-bold" : "text-pink-500 font-bold"}>
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${bet.type === 'BACK' ? 'bg-blue-500 text-white' : 'bg-pink-500 text-white'}`}>
                             {bet.type}
                           </span>
                         </TableCell>
-                        <TableCell className="font-mono">{bet.odds}</TableCell>
-                        <TableCell className="font-mono">₹{bet.stake}</TableCell>
+                        <TableCell className="font-mono">{parseFloat(bet.odds).toFixed(2)}</TableCell>
+                        <TableCell className="font-mono">₹ {parseFloat(bet.stake).toFixed(2)}</TableCell>
                         <TableCell>
-                          <span className="text-xs bg-accent px-2 py-1 rounded">{bet.status}</span>
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            bet.status === 'WON' ? 'bg-green-500/20 text-green-500' : 
+                            bet.status === 'LOST' ? 'bg-red-500/20 text-red-500' : 
+                            'bg-yellow-500/20 text-yellow-500'
+                          }`}>
+                            {bet.status}
+                          </span>
                         </TableCell>
                       </TableRow>
                     ))

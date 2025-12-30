@@ -1,16 +1,19 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { OddsCard } from "@/components/betting/OddsCard";
 import { BetSlip } from "@/components/betting/BetSlip";
-import { Match, Runner } from "@/lib/mockData";
-import { useState } from "react";
+import { Match, Runner } from "@/lib/store";
+import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { api } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Dashboard() {
-  const matches = useStore(state => state.matches);
+  const { matches, setMatches } = useStore();
+  const currentUser = useStore(state => state.currentUser);
   const [selectedBet, setSelectedBet] = useState<{
     match: Match;
     runner: Runner;
@@ -19,11 +22,52 @@ export default function Dashboard() {
   } | null>(null);
   const isMobile = useIsMobile();
 
+  // Fetch matches from API
+  const { data: matchesData, isLoading } = useQuery({
+    queryKey: ['matches'],
+    queryFn: async () => {
+      const result = await api.getMatches();
+      return result.matches;
+    },
+    refetchInterval: 10000, // Refetch every 10 seconds for live updates
+  });
+
+  // Update store when matches change
+  useEffect(() => {
+    if (matchesData) {
+      const formattedMatches = matchesData.map(m => ({
+        ...m,
+        markets: m.markets.map(market => ({
+          ...market,
+          runners: market.runners.map(r => ({
+            ...r,
+            backOdds: parseFloat(r.backOdds),
+            layOdds: parseFloat(r.layOdds),
+          }))
+        }))
+      }));
+      setMatches(formattedMatches);
+    }
+  }, [matchesData, setMatches]);
+
   const handleBetSelect = (match: Match, runner: Runner, type: 'BACK' | 'LAY', odds: number) => {
     setSelectedBet({ match, runner, type, odds });
   };
 
   const clearBet = () => setSelectedBet(null);
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+            <p className="mt-4 text-muted-foreground">Loading matches...</p>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -51,15 +95,27 @@ export default function Dashboard() {
             </TabsList>
             
             <TabsContent value="in-play" className="space-y-4 mt-4">
-              {matches.filter(m => m.status === 'LIVE').map(match => (
-                <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
-              ))}
+              {matches.filter(m => m.status === 'LIVE').length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  No live matches at the moment
+                </div>
+              ) : (
+                matches.filter(m => m.status === 'LIVE').map(match => (
+                  <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                ))
+              )}
             </TabsContent>
             
             <TabsContent value="upcoming" className="space-y-4 mt-4">
-              {matches.filter(m => m.status === 'UPCOMING').map(match => (
-                <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
-              ))}
+              {matches.filter(m => m.status === 'UPCOMING').length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  No upcoming matches
+                </div>
+              ) : (
+                matches.filter(m => m.status === 'UPCOMING').map(match => (
+                  <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                ))
+              )}
             </TabsContent>
           </Tabs>
 

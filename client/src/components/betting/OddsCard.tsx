@@ -1,4 +1,4 @@
-import { Match, Runner } from "@/lib/mockData";
+import { Match, Runner } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Clock, Tv } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,10 @@ export function OddsCard({ matchId, onBetSelect }: OddsCardProps) {
         const prevMatch = prevState.matches.find(m => m.id === matchId);
         const currMatch = state.matches.find(m => m.id === matchId);
         
-        if (prevMatch && currMatch) {
+        if (prevMatch && currMatch && currMatch.markets[0]) {
             currMatch.markets[0].runners.forEach((runner, idx) => {
-                const prevRunner = prevMatch.markets[0].runners[idx];
-                if (runner.backOdds !== prevRunner.backOdds || runner.layOdds !== prevRunner.layOdds) {
+                const prevRunner = prevMatch.markets[0]?.runners[idx];
+                if (prevRunner && (runner.backOdds !== prevRunner.backOdds || runner.layOdds !== prevRunner.layOdds)) {
                     setLastUpdate(runner.id);
                     setTimeout(() => setLastUpdate(null), 500);
                 }
@@ -35,6 +35,14 @@ export function OddsCard({ matchId, onBetSelect }: OddsCardProps) {
   if (!match) return null;
 
   const mainMarket = match.markets[0];
+  if (!mainMarket) return null;
+
+  // Parse score from scoreHome and scoreAway if they exist
+  const score = match.scoreHome && match.scoreAway ? {
+    home: match.scoreHome,
+    away: match.scoreAway,
+    details: match.scoreDetails
+  } : undefined;
 
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden hover:border-primary/20 transition-colors shadow-sm">
@@ -60,14 +68,14 @@ export function OddsCard({ matchId, onBetSelect }: OddsCardProps) {
         <div className="col-span-12 md:col-span-6 p-4 flex flex-col justify-center border-b md:border-b-0 md:border-r border-border/50">
           <div className="flex justify-between items-center mb-2">
             <span className="font-heading text-lg font-medium">{match.homeTeam}</span>
-            {match.score && <span className="font-mono font-bold text-primary">{match.score.home}</span>}
+            {score && <span className="font-mono font-bold text-primary">{score.home}</span>}
           </div>
           <div className="flex justify-between items-center">
             <span className="font-heading text-lg font-medium">{match.awayTeam}</span>
-            {match.score && <span className="font-mono font-bold text-primary">{match.score.away}</span>}
+            {score && <span className="font-mono font-bold text-primary">{score.away}</span>}
           </div>
-          {match.score?.details && (
-            <div className="mt-2 text-xs text-muted-foreground font-mono">{match.score.details}</div>
+          {score?.details && (
+            <div className="mt-2 text-xs text-muted-foreground font-mono">{score.details}</div>
           )}
         </div>
 
@@ -87,6 +95,7 @@ export function OddsCard({ matchId, onBetSelect }: OddsCardProps) {
                 <div className="text-sm font-medium truncate px-2">{runner.name}</div>
                 
                 <Button 
+                  data-testid={`button-back-${runner.id}`}
                   variant="ghost" 
                   className={cn(
                     "h-10 rounded-sm flex flex-col items-center justify-center gap-0.5 bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20 hover:border-blue-500/50 transition-all p-0",
@@ -99,6 +108,7 @@ export function OddsCard({ matchId, onBetSelect }: OddsCardProps) {
                 </Button>
 
                 <Button 
+                  data-testid={`button-lay-${runner.id}`}
                   variant="ghost" 
                   className={cn(
                     "h-10 rounded-sm flex flex-col items-center justify-center gap-0.5 bg-pink-500/10 hover:bg-pink-500/20 border-pink-500/20 hover:border-pink-500/50 transition-all p-0",

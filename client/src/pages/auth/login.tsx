@@ -5,39 +5,61 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShieldCheck, User } from "lucide-react";
+import { ShieldCheck, User, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
 
 export default function Login() {
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [_, setLocation] = useLocation();
-  const login = useStore(state => state.login);
+  const setCurrentUser = useStore(state => state.setCurrentUser);
   const { toast } = useToast();
 
-  const handleLogin = (role: 'USER' | 'ADMIN') => {
-    if (!username) {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!username || !password) {
       toast({
         title: "Error",
-        description: "Please enter a username",
+        description: "Please enter username and password",
         variant: "destructive"
       });
       return;
     }
 
-    const success = login(username, role);
-    if (success) {
+    setIsLoading(true);
+
+    try {
+      const { user } = await api.login(username, password);
+      
+      // Update Zustand store with logged in user
+      setCurrentUser({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        balance: parseFloat(user.balance),
+        exposure: parseFloat(user.exposure),
+        currency: user.currency
+      });
+
       toast({
         title: "Welcome back!",
-        description: `Logged in as ${role.toLowerCase()}`,
+        description: `Logged in as ${user.role.toLowerCase()}`,
         className: "bg-green-600 text-white border-none"
       });
-      setLocation(role === 'ADMIN' ? '/admin' : '/');
-    } else {
+
+      // Redirect based on role
+      setLocation(user.role === 'ADMIN' ? '/admin' : '/');
+    } catch (error: any) {
       toast({
         title: "Login Failed",
-        description: "User not found. Try 'demo' for user or 'admin' for admin.",
+        description: error.message || "Invalid credentials",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -56,57 +78,55 @@ export default function Login() {
         <Card className="border-primary/20 bg-card/50 backdrop-blur-xl">
           <CardHeader>
             <CardTitle>Welcome Back</CardTitle>
-            <CardDescription>Select your role to continue</CardDescription>
+            <CardDescription>Login to your account</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="user" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="user">User</TabsTrigger>
-                <TabsTrigger value="admin">Admin</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="user" className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Username</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      placeholder="Enter username (try: demo)" 
-                      className="pl-9"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                    />
-                  </div>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" data-testid="label-username">Username</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    data-testid="input-username"
+                    placeholder="Enter username" 
+                    className="pl-9"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    disabled={isLoading}
+                  />
                 </div>
-                <Button className="w-full font-bold" onClick={() => handleLogin('USER')}>
-                  Login as User
-                </Button>
-                <div className="text-xs text-center text-muted-foreground">
-                  Default user: <span className="font-mono text-primary">demo</span>
-                </div>
-              </TabsContent>
+              </div>
 
-              <TabsContent value="admin" className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Admin ID</label>
-                  <div className="relative">
-                    <ShieldCheck className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      placeholder="Enter admin ID (try: admin)" 
-                      className="pl-9"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                    />
-                  </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" data-testid="label-password">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    data-testid="input-password"
+                    type="password"
+                    placeholder="Enter password" 
+                    className="pl-9"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
                 </div>
-                <Button className="w-full font-bold bg-orange-600 hover:bg-orange-700" onClick={() => handleLogin('ADMIN')}>
-                  Login to Panel
-                </Button>
-                <div className="text-xs text-center text-muted-foreground">
-                   Default admin: <span className="font-mono text-orange-500">admin</span>
-                </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+
+              <Button 
+                data-testid="button-login"
+                type="submit" 
+                className="w-full font-bold" 
+                disabled={isLoading}
+              >
+                {isLoading ? "Logging in..." : "Login"}
+              </Button>
+
+              <div className="text-xs text-center text-muted-foreground space-y-1">
+                <div>Demo user: <span className="font-mono text-primary">demo / demo123</span></div>
+                <div>Admin: <span className="font-mono text-orange-500">admin / admin123</span></div>
+              </div>
+            </form>
           </CardContent>
         </Card>
       </div>
