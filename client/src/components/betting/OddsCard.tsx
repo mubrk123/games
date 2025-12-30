@@ -2,47 +2,43 @@ import { Match, Runner } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { Clock, Tv } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
-import { socketService } from "@/lib/mockData";
+import { useState, useEffect } from "react";
+import { useStore } from "@/lib/store";
 
 interface OddsCardProps {
-  match: Match;
+  matchId: string;
   onBetSelect: (match: Match, runner: Runner, type: 'BACK' | 'LAY', odds: number) => void;
 }
 
-export function OddsCard({ match, onBetSelect }: OddsCardProps) {
-  const [currentMatch, setCurrentMatch] = useState(match);
+export function OddsCard({ matchId, onBetSelect }: OddsCardProps) {
+  // Select specific match from store to ensure reactive updates
+  const match = useStore(state => state.matches.find(m => m.id === matchId));
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   useEffect(() => {
-    // Subscribe to simulated odds updates
-    const unsubscribe = socketService.on('odds_update', (data: any) => {
-      if (data.matchId === match.id) {
-        setCurrentMatch(prev => ({
-          ...prev,
-          markets: prev.markets.map(m => {
-            if (m.id === data.marketId) {
-              return {
-                ...m,
-                runners: m.runners.map(r => {
-                  if (r.id === data.runnerId) {
-                    return { ...r, backOdds: data.newBack, layOdds: data.newLay };
-                  }
-                  return r;
-                })
-              };
-            }
-            return m;
-          })
-        }));
-        setLastUpdate(data.runnerId);
-        setTimeout(() => setLastUpdate(null), 500);
-      }
+    // We can use a small effect to highlight changes if we want,
+    // but React will handle re-renders automatically from the store.
+    // This effect is just for the "flash" animation on change.
+    const unsubscribe = useStore.subscribe((state, prevState) => {
+        const prevMatch = prevState.matches.find(m => m.id === matchId);
+        const currMatch = state.matches.find(m => m.id === matchId);
+        
+        if (prevMatch && currMatch) {
+            currMatch.markets[0].runners.forEach((runner, idx) => {
+                const prevRunner = prevMatch.markets[0].runners[idx];
+                if (runner.backOdds !== prevRunner.backOdds || runner.layOdds !== prevRunner.layOdds) {
+                    setLastUpdate(runner.id);
+                    setTimeout(() => setLastUpdate(null), 500);
+                }
+            });
+        }
     });
     return unsubscribe;
-  }, [match.id]);
+  }, [matchId]);
 
-  const mainMarket = currentMatch.markets[0];
+  if (!match) return null;
+
+  const mainMarket = match.markets[0];
 
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden hover:border-primary/20 transition-colors shadow-sm">
@@ -100,7 +96,7 @@ export function OddsCard({ match, onBetSelect }: OddsCardProps) {
                     "h-10 rounded-sm flex flex-col items-center justify-center gap-0.5 bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20 hover:border-blue-500/50 transition-all p-0",
                     lastUpdate === runner.id && "bg-blue-500/40 ring-1 ring-blue-500"
                   )}
-                  onClick={() => onBetSelect(currentMatch, runner, 'BACK', runner.backOdds)}
+                  onClick={() => onBetSelect(match, runner, 'BACK', runner.backOdds)}
                 >
                   <span className="font-bold text-blue-400 text-sm">{runner.backOdds.toFixed(2)}</span>
                   <span className="text-[10px] text-muted-foreground font-mono">{(runner.volume / 1000).toFixed(1)}k</span>
@@ -112,7 +108,7 @@ export function OddsCard({ match, onBetSelect }: OddsCardProps) {
                     "h-10 rounded-sm flex flex-col items-center justify-center gap-0.5 bg-pink-500/10 hover:bg-pink-500/20 border-pink-500/20 hover:border-pink-500/50 transition-all p-0",
                     lastUpdate === runner.id && "bg-pink-500/40 ring-1 ring-pink-500"
                   )}
-                  onClick={() => onBetSelect(currentMatch, runner, 'LAY', runner.layOdds)}
+                  onClick={() => onBetSelect(match, runner, 'LAY', runner.layOdds)}
                 >
                   <span className="font-bold text-pink-400 text-sm">{runner.layOdds.toFixed(2)}</span>
                   <span className="text-[10px] text-muted-foreground font-mono">{(runner.volume / 1200).toFixed(1)}k</span>

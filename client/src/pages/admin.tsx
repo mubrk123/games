@@ -1,10 +1,14 @@
 import { AppShell } from "@/components/layout/AppShell";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, Users, Wallet, Activity, AlertTriangle, Lock, Search } from "lucide-react";
+import { ShieldCheck, Users, Wallet, Activity, AlertTriangle, Lock, Search, UserPlus, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { useStore } from "@/lib/store";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 const data = [
   { name: 'Mon', profit: 4000 },
@@ -17,6 +21,44 @@ const data = [
 ];
 
 export default function AdminPanel() {
+  const { users, bets, registerUser, addFunds } = useStore();
+  const [newUserOpen, setNewUserOpen] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [initialBalance, setInitialBalance] = useState("0");
+  const [creditAmount, setCreditAmount] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const { toast } = useToast();
+
+  const handleCreateUser = () => {
+    if (!newUsername) return;
+    registerUser(newUsername, Number(initialBalance));
+    setNewUserOpen(false);
+    setNewUsername("");
+    setInitialBalance("0");
+    toast({
+      title: "User Created",
+      description: `User ${newUsername} added successfully.`
+    });
+  };
+
+  const handleAddCredit = () => {
+    if (!selectedUserId || !creditAmount) {
+      toast({ title: "Error", description: "Select User ID and enter amount", variant: "destructive" });
+      return;
+    }
+    addFunds(selectedUserId, Number(creditAmount));
+    setCreditAmount("");
+    setSelectedUserId("");
+    toast({
+      title: "Credit Added",
+      description: "Wallet updated successfully",
+      className: "bg-green-600 text-white"
+    });
+  };
+
+  // Filter only 'USER' role for the table
+  const clientUsers = users.filter(u => u.role === 'USER');
+
   return (
     <AppShell>
       <div className="space-y-6">
@@ -26,8 +68,30 @@ export default function AdminPanel() {
             <p className="text-muted-foreground">System Overview & Risk Management</p>
           </div>
           <div className="flex gap-2">
+            
+            <Dialog open={newUserOpen} onOpenChange={setNewUserOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 bg-blue-600 hover:bg-blue-700"><UserPlus className="w-4 h-4" /> Create User</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New User</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Username</label>
+                    <Input value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="e.g. player123" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Initial Balance</label>
+                    <Input type="number" value={initialBalance} onChange={e => setInitialBalance(e.target.value)} />
+                  </div>
+                  <Button className="w-full" onClick={handleCreateUser}>Create Account</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             <Button variant="destructive" className="gap-2"><AlertTriangle className="w-4 h-4" /> Panic Button</Button>
-            <Button className="gap-2"><Activity className="w-4 h-4" /> System Health: 99.9%</Button>
           </div>
         </div>
 
@@ -39,8 +103,9 @@ export default function AdminPanel() {
               <ShieldCheck className="w-4 h-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-mono">₹ 1,245,000</div>
-              <p className="text-xs text-muted-foreground">+2.5% from last hour</p>
+              <div className="text-2xl font-bold font-mono">
+                ₹ {clientUsers.reduce((acc, u) => acc + u.exposure, 0).toLocaleString()}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-card/50 border-orange-500/20">
@@ -49,113 +114,142 @@ export default function AdminPanel() {
               <Users className="w-4 h-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-mono">843</div>
-              <p className="text-xs text-muted-foreground">124 currently online</p>
+              <div className="text-2xl font-bold font-mono">{clientUsers.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-card/50 border-orange-500/20">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">GGR (Today)</CardTitle>
-              <Wallet className="w-4 h-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-mono text-green-500">₹ 45,230</div>
-              <p className="text-xs text-muted-foreground">Gross Game Revenue</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-card/50 border-orange-500/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Open Bets</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Bets</CardTitle>
               <Activity className="w-4 h-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-mono">1,024</div>
-              <p className="text-xs text-muted-foreground">Across 12 markets</p>
+              <div className="text-2xl font-bold font-mono">{bets.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-card/50 border-orange-500/20">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">System Balance</CardTitle>
+              <Wallet className="w-4 h-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-mono text-green-500">
+                ₹ {clientUsers.reduce((acc, u) => acc + u.balance, 0).toLocaleString()}
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Chart & User Management */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly P&L Overview</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
-                  <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value}`} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1e293b', border: 'none' }}
-                    cursor={{ fill: 'rgba(255,255,255,0.1)' }}
-                  />
-                  <Bar dataKey="profit" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
+          {/* User Management */}
+          <Card className="lg:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>User Wallet Management</CardTitle>
-              <div className="flex gap-2">
-                <Input placeholder="Search user ID..." className="h-8 w-[150px]" />
-                <Button size="sm" variant="outline"><Search className="w-4 h-4" /></Button>
+              <div>
+                 <CardTitle>User Management</CardTitle>
+                 <CardDescription>Manage wallets and view exposure</CardDescription>
+              </div>
+              <div className="flex gap-2 items-center bg-muted/50 p-2 rounded-lg border border-border">
+                <span className="text-xs font-bold text-muted-foreground uppercase">Manual Credit</span>
+                <select 
+                  className="h-8 w-[150px] bg-background border rounded text-xs px-2"
+                  value={selectedUserId}
+                  onChange={(e) => setSelectedUserId(e.target.value)}
+                >
+                  <option value="">Select User</option>
+                  {clientUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.username}</option>
+                  ))}
+                </select>
+                <Input 
+                  placeholder="Amount" 
+                  className="h-8 w-[100px]" 
+                  type="number" 
+                  value={creditAmount}
+                  onChange={e => setCreditAmount(e.target.value)}
+                />
+                <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700" onClick={handleAddCredit}>Add</Button>
               </div>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User</TableHead>
+                    <TableHead>User ID</TableHead>
+                    <TableHead>Username</TableHead>
                     <TableHead>Balance</TableHead>
                     <TableHead>Exposure</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">demo_user</TableCell>
-                    <TableCell className="font-mono">10,000</TableCell>
-                    <TableCell className="font-mono text-destructive">0</TableCell>
-                    <TableCell className="text-right">
-                       <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
-                         <Lock className="w-3 h-3" /> Suspend
-                       </Button>
-                    </TableCell>
-                  </TableRow>
-                   <TableRow>
-                    <TableCell className="font-medium">vip_player_99</TableCell>
-                    <TableCell className="font-mono">1,50,000</TableCell>
-                    <TableCell className="font-mono text-destructive">-25,000</TableCell>
-                    <TableCell className="text-right">
-                       <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
-                         <Lock className="w-3 h-3" /> Suspend
-                       </Button>
-                    </TableCell>
-                  </TableRow>
-                   <TableRow>
-                    <TableCell className="font-medium">agent_007</TableCell>
-                    <TableCell className="font-mono">50,000</TableCell>
-                    <TableCell className="font-mono text-destructive">0</TableCell>
-                    <TableCell className="text-right">
-                       <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
-                         <Lock className="w-3 h-3" /> Suspend
-                       </Button>
-                    </TableCell>
-                  </TableRow>
+                  {clientUsers.map(u => (
+                    <TableRow key={u.id}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{u.id}</TableCell>
+                      <TableCell className="font-medium">{u.username}</TableCell>
+                      <TableCell className="font-mono">₹ {u.balance.toLocaleString()}</TableCell>
+                      <TableCell className="font-mono text-destructive">
+                        {u.exposure > 0 ? `- ₹ ${u.exposure.toLocaleString()}` : '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                           <Lock className="w-3 h-3" /> Suspend
+                         </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
-              <div className="mt-4 p-4 bg-muted/30 rounded border border-dashed border-border">
-                <h4 className="text-sm font-bold mb-2 text-muted-foreground">Manual Credit (Admin Only)</h4>
-                <div className="flex gap-2">
-                  <Input placeholder="User ID" className="h-9" />
-                  <Input placeholder="Amount" className="h-9" type="number" />
-                  <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">Add Credit</Button>
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-2">* Transaction will be logged in audit trail.</p>
-              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bet History */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Global Bet History</CardTitle>
+              <CardDescription>Real-time feed of all user bets</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Time</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Match</TableHead>
+                    <TableHead>Selection</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Odds</TableHead>
+                    <TableHead>Stake</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {bets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">No bets placed yet</TableCell>
+                    </TableRow>
+                  ) : (
+                    bets.map(bet => (
+                      <TableRow key={bet.id}>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(bet.timestamp).toLocaleTimeString()}
+                        </TableCell>
+                        <TableCell className="font-medium">{bet.userName}</TableCell>
+                        <TableCell className="text-xs">{bet.matchName}</TableCell>
+                        <TableCell>{bet.selectionName}</TableCell>
+                        <TableCell>
+                          <span className={bet.type === 'BACK' ? "text-blue-500 font-bold" : "text-pink-500 font-bold"}>
+                            {bet.type}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-mono">{bet.odds}</TableCell>
+                        <TableCell className="font-mono">₹{bet.stake}</TableCell>
+                        <TableCell>
+                          <span className="text-xs bg-accent px-2 py-1 rounded">{bet.status}</span>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </div>

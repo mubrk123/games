@@ -1,15 +1,20 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Trophy, Gamepad2, Settings, Menu, X, Wallet, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, Trophy, Gamepad2, Settings, Menu, X, Wallet, ShieldAlert, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
-import { useUser } from "@/lib/userContext";
+import { useStore } from "@/lib/store";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [location] = useLocation();
-  const { user } = useUser();
+  const [location, setLocation] = useLocation();
+  const { currentUser, logout } = useStore();
+
+  const handleLogout = () => {
+    logout();
+    setLocation('/login');
+  };
 
   const NavItems = () => (
     <>
@@ -31,7 +36,7 @@ export function Navbar() {
           <span className="font-medium">Casino</span>
         </div>
       </Link>
-      {user.role === 'ADMIN' && (
+      {currentUser?.role === 'ADMIN' && (
         <Link href="/admin">
           <div className={cn("flex items-center gap-3 px-3 py-2 rounded-md transition-colors cursor-pointer text-orange-500", location === "/admin" ? "bg-orange-500/10" : "hover:bg-orange-500/5")}>
             <Settings className="h-4 w-4" />
@@ -57,6 +62,9 @@ export function Navbar() {
             </div>
             <div className="flex flex-col gap-2">
               <NavItems />
+              <Button variant="ghost" className="justify-start gap-3 px-3 text-red-400 hover:text-red-500 hover:bg-red-950/20 mt-4" onClick={handleLogout}>
+                <LogOut className="h-4 w-4" /> Logout
+              </Button>
             </div>
           </SheetContent>
         </Sheet>
@@ -72,29 +80,42 @@ export function Navbar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="hidden sm:flex flex-col items-end mr-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider font-bold">
-            <Wallet className="h-3 w-3" /> Balance
+      {currentUser ? (
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:flex flex-col items-end mr-2">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider font-bold">
+              <Wallet className="h-3 w-3" /> Balance
+            </div>
+            <div className="font-mono text-primary font-bold text-lg leading-none">
+              {currentUser.currency} {currentUser.balance.toLocaleString()}
+            </div>
           </div>
-          <div className="font-mono text-primary font-bold text-lg leading-none">
-            {user.currency} {user.balance.toLocaleString()}
+          
+          <div className="hidden sm:flex flex-col items-end">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider font-bold">
+              <ShieldAlert className="h-3 w-3" /> Exposure
+            </div>
+            <div className="font-mono text-destructive font-bold text-lg leading-none">
+              {currentUser.exposure > 0 ? '-' : ''}{currentUser.currency} {currentUser.exposure.toLocaleString()}
+            </div>
           </div>
-        </div>
-        
-        <div className="hidden sm:flex flex-col items-end">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider font-bold">
-            <ShieldAlert className="h-3 w-3" /> Exposure
-          </div>
-          <div className="font-mono text-destructive font-bold text-lg leading-none">
-            {user.exposure > 0 ? '-' : ''}{user.currency} {user.exposure.toLocaleString()}
-          </div>
-        </div>
 
-        <div className="h-9 w-9 rounded-full bg-accent flex items-center justify-center border border-accent-foreground/10 text-accent-foreground font-bold">
-          {user.username[0].toUpperCase()}
+          <div className="flex items-center gap-3">
+             <div className="h-9 w-9 rounded-full bg-accent flex items-center justify-center border border-accent-foreground/10 text-accent-foreground font-bold" title={currentUser.username}>
+              {currentUser.username[0].toUpperCase()}
+            </div>
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-center gap-2">
+           <Link href="/login">
+             <Button variant="default" className="font-bold">Login</Button>
+           </Link>
+        </div>
+      )}
     </nav>
   );
 }

@@ -1,12 +1,14 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { OddsCard } from "@/components/betting/OddsCard";
 import { BetSlip } from "@/components/betting/BetSlip";
-import { MOCK_MATCHES, Match, Runner } from "@/lib/mockData";
+import { Match, Runner } from "@/lib/mockData";
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { useStore } from "@/lib/store";
 
 export default function Dashboard() {
+  const matches = useStore(state => state.matches);
   const [selectedBet, setSelectedBet] = useState<{
     match: Match;
     runner: Runner;
@@ -44,14 +46,14 @@ export default function Dashboard() {
             </TabsList>
             
             <TabsContent value="in-play" className="space-y-4 mt-4">
-              {MOCK_MATCHES.filter(m => m.status === 'LIVE').map(match => (
-                <OddsCard key={match.id} match={match} onBetSelect={handleBetSelect} />
+              {matches.filter(m => m.status === 'LIVE').map(match => (
+                <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
               ))}
             </TabsContent>
             
             <TabsContent value="upcoming" className="space-y-4 mt-4">
-              {MOCK_MATCHES.filter(m => m.status === 'UPCOMING').map(match => (
-                <OddsCard key={match.id} match={match} onBetSelect={handleBetSelect} />
+              {matches.filter(m => m.status === 'UPCOMING').map(match => (
+                <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
               ))}
             </TabsContent>
           </Tabs>

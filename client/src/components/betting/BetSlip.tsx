@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Match, Runner, Bet } from "@/lib/mockData";
-import { useUser } from "@/lib/userContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Match, Runner } from "@/lib/mockData";
+import { Bet } from "@/lib/types";
+import { useStore } from "@/lib/store";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { X, Trash2, ArrowRight } from "lucide-react";
+import { X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,9 +22,11 @@ interface BetSlipProps {
 
 export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
   const [stake, setStake] = useState<string>('');
-  const [bets, setBets] = useState<Bet[]>([]);
+  const { currentUser, placeBet, bets } = useStore();
   const { toast } = useToast();
-  const { user, updateBalance } = useUser();
+
+  // Filter bets for current user
+  const userBets = bets.filter(b => b.userId === currentUser?.id);
 
   // Reset stake when selection changes
   useEffect(() => {
@@ -33,15 +36,25 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
   }, [selectedBet]);
 
   const handlePlaceBet = () => {
+    if (!currentUser) {
+      toast({ title: "Login Required", description: "Please login to place bets", variant: "destructive" });
+      return;
+    }
     if (!selectedBet || !stake) return;
     
     const stakeAmount = parseFloat(stake);
     if (isNaN(stakeAmount) || stakeAmount <= 0) return;
 
-    if (stakeAmount > user.balance) {
+    // Check balance
+    // For BACK: stake must be <= balance
+    // For LAY: liability (stake * (odds - 1)) must be <= balance (simplified)
+    const liability = selectedBet.type === 'LAY' ? (stakeAmount * (selectedBet.odds - 1)) : 0;
+    const requiredAmount = selectedBet.type === 'BACK' ? stakeAmount : liability;
+
+    if (requiredAmount > currentUser.balance) {
       toast({
         title: "Insufficient Balance",
-        description: "Please add funds to your wallet.",
+        description: `You need ${currentUser.currency} ${requiredAmount.toFixed(2)}`,
         variant: "destructive"
       });
       return;
@@ -49,24 +62,21 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
 
     const profit = selectedBet.type === 'BACK' 
       ? (stakeAmount * selectedBet.odds) - stakeAmount 
-      : stakeAmount; // Simplified Lay calc for demo
+      : stakeAmount;
 
-    const newBet: Bet = {
-      id: Math.random().toString(),
-      matchId: selectedBet.match.id,
-      matchName: `${selectedBet.match.homeTeam} v ${selectedBet.match.awayTeam}`,
-      marketName: selectedBet.match.markets[0].name,
-      selectionName: selectedBet.runner.name,
-      type: selectedBet.type,
-      odds: selectedBet.odds,
-      stake: stakeAmount,
-      potentialProfit: profit,
-      status: 'OPEN',
-      timestamp: new Date()
-    };
+    placeBet(currentUser.id, {
+        userId: currentUser.id,
+        userName: currentUser.username,
+        matchId: selectedBet.match.id,
+        matchName: `${selectedBet.match.homeTeam} v ${selectedBet.match.awayTeam}`,
+        marketName: selectedBet.match.markets[0].name,
+        selectionName: selectedBet.runner.name,
+        type: selectedBet.type,
+        odds: selectedBet.odds,
+        stake: stakeAmount,
+        potentialProfit: profit
+    });
 
-    setBets([newBet, ...bets]);
-    updateBalance(-stakeAmount); // Deduct from wallet immediately for demo
     onClear();
     
     toast({
@@ -84,7 +94,7 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
       <Tabs defaultValue="slip" className="w-full flex-1 flex flex-col">
         <TabsList className="w-full grid grid-cols-2 bg-card border border-border">
           <TabsTrigger value="slip">Bet Slip {selectedBet && <span className="ml-2 w-2 h-2 rounded-full bg-primary animate-pulse" />}</TabsTrigger>
-          <TabsTrigger value="open">Open Bets ({bets.length})</TabsTrigger>
+          <TabsTrigger value="open">My Bets ({userBets.length})</TabsTrigger>
         </TabsList>
         
         <TabsContent value="slip" className="flex-1 flex flex-col gap-4 mt-4">
@@ -142,8 +152,8 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
                   )}
                 </div>
 
-                <Button className="w-full font-bold uppercase tracking-wider h-12 text-md" onClick={handlePlaceBet}>
-                  Place Bet
+                <Button className="w-full font-bold uppercase tracking-wider h-12 text-md" onClick={handlePlaceBet} disabled={!currentUser}>
+                  {currentUser ? 'Place Bet' : 'Login to Bet'}
                 </Button>
               </div>
             </div>
@@ -156,11 +166,11 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
         </TabsContent>
 
         <TabsContent value="open" className="flex-1 mt-4 overflow-auto">
-          {bets.length === 0 ? (
+          {userBets.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No open bets</div>
           ) : (
             <div className="space-y-3">
-              {bets.map(bet => (
+              {userBets.map(bet => (
                 <div key={bet.id} className="bg-card border border-border rounded p-3 text-sm">
                   <div className="flex justify-between mb-1">
                     <span className="font-bold">{bet.selectionName}</span>

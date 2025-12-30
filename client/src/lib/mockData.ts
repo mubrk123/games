@@ -1,5 +1,7 @@
 // Mock Data and Types for the Betting Application
 
+import { Bet } from './types';
+
 export type Sport = 'cricket' | 'football' | 'tennis' | 'basketball';
 
 export interface Market {
@@ -42,19 +44,7 @@ export interface User {
   currency: string;
 }
 
-export interface Bet {
-  id: string;
-  matchId: string;
-  matchName: string;
-  marketName: string;
-  selectionName: string;
-  type: 'BACK' | 'LAY';
-  odds: number;
-  stake: number;
-  potentialProfit: number;
-  status: 'OPEN' | 'WON' | 'LOST' | 'VOID';
-  timestamp: Date;
-}
+export { type Bet };
 
 // Initial Mock State
 export const MOCK_USER: User = {
@@ -149,6 +139,8 @@ export const MOCK_MATCHES: Match[] = [
 export const MOCK_BETS: Bet[] = [
   {
     id: 'b1',
+    userId: 'u1',
+    userName: 'demo_user',
     matchId: 'm1',
     matchName: 'MI vs CSK',
     marketName: 'Match Winner',
@@ -162,6 +154,8 @@ export const MOCK_BETS: Bet[] = [
   },
   {
     id: 'b2',
+    userId: 'u1',
+    userName: 'demo_user',
     matchId: 'm3',
     matchName: 'Alcaraz vs Djokovic',
     marketName: 'Match Winner',
