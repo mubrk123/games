@@ -11,14 +11,10 @@ interface OddsCardProps {
 }
 
 export function OddsCard({ matchId, onBetSelect }: OddsCardProps) {
-  // Select specific match from store to ensure reactive updates
   const match = useStore(state => state.matches.find(m => m.id === matchId));
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   useEffect(() => {
-    // We can use a small effect to highlight changes if we want,
-    // but React will handle re-renders automatically from the store.
-    // This effect is just for the "flash" animation on change.
     const unsubscribe = useStore.subscribe((state, prevState) => {
         const prevMatch = prevState.matches.find(m => m.id === matchId);
         const currMatch = state.matches.find(m => m.id === matchId);
@@ -60,7 +56,7 @@ export function OddsCard({ matchId, onBetSelect }: OddsCardProps) {
       </div>
 
       <div className="grid grid-cols-12 gap-0">
-        {/* Teams Section */}
+        {/* Teams Section - Stack on mobile, side-by-side on md+ */}
         <div className="col-span-12 md:col-span-6 p-4 flex flex-col justify-center border-b md:border-b-0 md:border-r border-border/50">
           <div className="flex justify-between items-center mb-2">
             <span className="font-heading text-lg font-medium">{match.homeTeam}</span>

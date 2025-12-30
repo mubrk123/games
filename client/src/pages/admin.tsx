@@ -3,22 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, Users, Wallet, Activity, AlertTriangle, Lock, Search, UserPlus, ArrowUpRight, ArrowDownRight } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { ShieldCheck, Users, Wallet, Activity, AlertTriangle, Lock, Search, UserPlus } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-
-const data = [
-  { name: 'Mon', profit: 4000 },
-  { name: 'Tue', profit: 3000 },
-  { name: 'Wed', profit: 2000 },
-  { name: 'Thu', profit: 2780 },
-  { name: 'Fri', profit: 1890 },
-  { name: 'Sat', profit: 2390 },
-  { name: 'Sun', profit: 3490 },
-];
 
 export default function AdminPanel() {
   const { users, bets, registerUser, addFunds } = useStore();
@@ -62,16 +51,15 @@ export default function AdminPanel() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-heading font-bold text-orange-500">Admin Dashboard</h1>
             <p className="text-muted-foreground">System Overview & Risk Management</p>
           </div>
-          <div className="flex gap-2">
-            
+          <div className="flex gap-2 w-full sm:w-auto">
             <Dialog open={newUserOpen} onOpenChange={setNewUserOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2 bg-blue-600 hover:bg-blue-700"><UserPlus className="w-4 h-4" /> Create User</Button>
+                <Button className="gap-2 bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none"><UserPlus className="w-4 h-4" /> Create User</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -90,49 +78,48 @@ export default function AdminPanel() {
                 </div>
               </DialogContent>
             </Dialog>
-
-            <Button variant="destructive" className="gap-2"><AlertTriangle className="w-4 h-4" /> Panic Button</Button>
+            <Button variant="destructive" className="gap-2 flex-1 sm:flex-none"><AlertTriangle className="w-4 h-4" /> Panic</Button>
           </div>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="bg-card/50 border-orange-500/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Exposure</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Exposure</CardTitle>
               <ShieldCheck className="w-4 h-4 text-orange-500" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-mono">
+            <CardContent className="px-4 pb-4">
+              <div className="text-xl sm:text-2xl font-bold font-mono truncate">
                 ₹ {clientUsers.reduce((acc, u) => acc + u.exposure, 0).toLocaleString()}
               </div>
             </CardContent>
           </Card>
           <Card className="bg-card/50 border-orange-500/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Active Users</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Users</CardTitle>
               <Users className="w-4 h-4 text-blue-500" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-mono">{clientUsers.length}</div>
+            <CardContent className="px-4 pb-4">
+              <div className="text-xl sm:text-2xl font-bold font-mono">{clientUsers.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-card/50 border-orange-500/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Bets</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Bets</CardTitle>
               <Activity className="w-4 h-4 text-purple-500" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-mono">{bets.length}</div>
+            <CardContent className="px-4 pb-4">
+              <div className="text-xl sm:text-2xl font-bold font-mono">{bets.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-card/50 border-orange-500/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">System Balance</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Balance</CardTitle>
               <Wallet className="w-4 h-4 text-green-500" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-mono text-green-500">
+            <CardContent className="px-4 pb-4">
+              <div className="text-xl sm:text-2xl font-bold font-mono text-green-500 truncate">
                 ₹ {clientUsers.reduce((acc, u) => acc + u.balance, 0).toLocaleString()}
               </div>
             </CardContent>
@@ -142,34 +129,36 @@ export default function AdminPanel() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* User Management */}
           <Card className="lg:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                  <CardTitle>User Management</CardTitle>
                  <CardDescription>Manage wallets and view exposure</CardDescription>
               </div>
-              <div className="flex gap-2 items-center bg-muted/50 p-2 rounded-lg border border-border">
-                <span className="text-xs font-bold text-muted-foreground uppercase">Manual Credit</span>
-                <select 
-                  className="h-8 w-[150px] bg-background border rounded text-xs px-2"
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                >
-                  <option value="">Select User</option>
-                  {clientUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.username}</option>
-                  ))}
-                </select>
-                <Input 
-                  placeholder="Amount" 
-                  className="h-8 w-[100px]" 
-                  type="number" 
-                  value={creditAmount}
-                  onChange={e => setCreditAmount(e.target.value)}
-                />
-                <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700" onClick={handleAddCredit}>Add</Button>
+              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-muted/50 p-2 rounded-lg border border-border w-full sm:w-auto">
+                <span className="text-xs font-bold text-muted-foreground uppercase whitespace-nowrap">Manual Credit</span>
+                <div className="flex gap-2 w-full sm:w-auto">
+                    <select 
+                      className="h-8 flex-1 sm:w-[150px] bg-background border rounded text-xs px-2"
+                      value={selectedUserId}
+                      onChange={(e) => setSelectedUserId(e.target.value)}
+                    >
+                      <option value="">Select User</option>
+                      {clientUsers.map(u => (
+                        <option key={u.id} value={u.id}>{u.username}</option>
+                      ))}
+                    </select>
+                    <Input 
+                      placeholder="Amt" 
+                      className="h-8 w-20" 
+                      type="number" 
+                      value={creditAmount}
+                      onChange={e => setCreditAmount(e.target.value)}
+                    />
+                    <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700" onClick={handleAddCredit}>Add</Button>
+                </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -183,15 +172,15 @@ export default function AdminPanel() {
                 <TableBody>
                   {clientUsers.map(u => (
                     <TableRow key={u.id}>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{u.id}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">{u.id}</TableCell>
                       <TableCell className="font-medium">{u.username}</TableCell>
-                      <TableCell className="font-mono">₹ {u.balance.toLocaleString()}</TableCell>
-                      <TableCell className="font-mono text-destructive">
+                      <TableCell className="font-mono whitespace-nowrap">₹ {u.balance.toLocaleString()}</TableCell>
+                      <TableCell className="font-mono text-destructive whitespace-nowrap">
                         {u.exposure > 0 ? `- ₹ ${u.exposure.toLocaleString()}` : '-'}
                       </TableCell>
                       <TableCell className="text-right">
                          <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
-                           <Lock className="w-3 h-3" /> Suspend
+                           <Lock className="w-3 h-3" /> <span className="hidden sm:inline">Suspend</span>
                          </Button>
                       </TableCell>
                     </TableRow>
@@ -207,13 +196,13 @@ export default function AdminPanel() {
               <CardTitle>Global Bet History</CardTitle>
               <CardDescription>Real-time feed of all user bets</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Time</TableHead>
+                    <TableHead className="whitespace-nowrap">Time</TableHead>
                     <TableHead>User</TableHead>
-                    <TableHead>Match</TableHead>
+                    <TableHead className="whitespace-nowrap">Match</TableHead>
                     <TableHead>Selection</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Odds</TableHead>
@@ -229,12 +218,12 @@ export default function AdminPanel() {
                   ) : (
                     bets.map(bet => (
                       <TableRow key={bet.id}>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                           {new Date(bet.timestamp).toLocaleTimeString()}
                         </TableCell>
                         <TableCell className="font-medium">{bet.userName}</TableCell>
-                        <TableCell className="text-xs">{bet.matchName}</TableCell>
-                        <TableCell>{bet.selectionName}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{bet.matchName}</TableCell>
+                        <TableCell className="whitespace-nowrap">{bet.selectionName}</TableCell>
                         <TableCell>
                           <span className={bet.type === 'BACK' ? "text-blue-500 font-bold" : "text-pink-500 font-bold"}>
                             {bet.type}

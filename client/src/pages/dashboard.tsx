@@ -6,6 +6,8 @@ import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function Dashboard() {
   const matches = useStore(state => state.matches);
@@ -15,10 +17,13 @@ export default function Dashboard() {
     type: 'BACK' | 'LAY';
     odds: number;
   } | null>(null);
+  const isMobile = useIsMobile();
 
   const handleBetSelect = (match: Match, runner: Runner, type: 'BACK' | 'LAY', odds: number) => {
     setSelectedBet({ match, runner, type, odds });
   };
+
+  const clearBet = () => setSelectedBet(null);
 
   return (
     <AppShell>
@@ -26,23 +31,23 @@ export default function Dashboard() {
         {/* Main Content - Matches */}
         <div className="col-span-12 lg:col-span-9 flex flex-col gap-6 overflow-y-auto pr-2 pb-20">
           
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <h2 className="text-2xl font-heading font-bold flex items-center gap-2">
               <span className="w-2 h-8 bg-primary rounded-sm inline-block"></span>
               Live Highlights
             </h2>
-            <div className="flex gap-2">
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 cursor-pointer">Cricket</Badge>
-              <Badge variant="outline" className="hover:bg-accent cursor-pointer">Football</Badge>
-              <Badge variant="outline" className="hover:bg-accent cursor-pointer">Tennis</Badge>
+            <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 cursor-pointer whitespace-nowrap">Cricket</Badge>
+              <Badge variant="outline" className="hover:bg-accent cursor-pointer whitespace-nowrap">Football</Badge>
+              <Badge variant="outline" className="hover:bg-accent cursor-pointer whitespace-nowrap">Tennis</Badge>
             </div>
           </div>
 
           <Tabs defaultValue="in-play" className="w-full">
-            <TabsList className="bg-card/50 border border-border/50">
-              <TabsTrigger value="in-play">In-Play</TabsTrigger>
-              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-              <TabsTrigger value="popular">Popular</TabsTrigger>
+            <TabsList className="bg-card/50 border border-border/50 w-full justify-start overflow-x-auto">
+              <TabsTrigger value="in-play" className="flex-1 sm:flex-none">In-Play</TabsTrigger>
+              <TabsTrigger value="upcoming" className="flex-1 sm:flex-none">Upcoming</TabsTrigger>
+              <TabsTrigger value="popular" className="flex-1 sm:flex-none">Popular</TabsTrigger>
             </TabsList>
             
             <TabsContent value="in-play" className="space-y-4 mt-4">
@@ -75,12 +80,21 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Sidebar - Bet Slip */}
+        {/* Right Sidebar - Bet Slip (Desktop) */}
         <div className="hidden lg:block col-span-3">
           <div className="sticky top-24">
-            <BetSlip selectedBet={selectedBet} onClear={() => setSelectedBet(null)} />
+            <BetSlip selectedBet={selectedBet} onClear={clearBet} />
           </div>
         </div>
+
+        {/* Mobile Bet Slip (Drawer) */}
+        <Sheet open={!!selectedBet && isMobile} onOpenChange={(open) => !open && clearBet()}>
+          <SheetContent side="bottom" className="h-[80vh] rounded-t-xl">
+             <div className="h-full pt-6">
+                <BetSlip selectedBet={selectedBet} onClear={clearBet} />
+             </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </AppShell>
   );
