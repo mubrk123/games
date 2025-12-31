@@ -62,9 +62,9 @@ export const runners = pgTable("runners", {
 export const bets = pgTable("bets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  matchId: varchar("match_id").notNull().references(() => matches.id),
-  marketId: varchar("market_id").notNull().references(() => markets.id),
-  runnerId: varchar("runner_id").notNull().references(() => runners.id),
+  matchId: varchar("match_id").notNull(), // No FK - allows API-sourced matches
+  marketId: varchar("market_id").notNull(), // No FK - allows API-sourced markets
+  runnerId: varchar("runner_id").notNull(), // No FK - allows API-sourced runners
   type: betTypeEnum("type").notNull(),
   odds: decimal("odds", { precision: 10, scale: 2 }).notNull(),
   stake: decimal("stake", { precision: 10, scale: 2 }).notNull(),
