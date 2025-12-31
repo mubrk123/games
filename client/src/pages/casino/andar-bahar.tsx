@@ -130,7 +130,7 @@ export default function AndarBaharGame() {
                 result?.winningSide === 'andar' ? "text-green-500" : ""
               )}>ANDAR</p>
               <div className="flex flex-wrap gap-1 justify-center min-h-[80px] p-2 rounded-lg bg-card/50">
-                {result?.andarCards.map((card, i) => (
+                {result?.andarCards?.map((card, i) => (
                   <span key={i} className="text-lg bg-white/10 px-2 py-1 rounded">{card}</span>
                 ))}
               </div>
@@ -141,7 +141,7 @@ export default function AndarBaharGame() {
                 result?.winningSide === 'bahar' ? "text-green-500" : ""
               )}>BAHAR</p>
               <div className="flex flex-wrap gap-1 justify-center min-h-[80px] p-2 rounded-lg bg-card/50">
-                {result?.baharCards.map((card, i) => (
+                {result?.baharCards?.map((card, i) => (
                   <span key={i} className="text-lg bg-white/10 px-2 py-1 rounded">{card}</span>
                 ))}
               </div>
