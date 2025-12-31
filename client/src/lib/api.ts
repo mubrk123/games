@@ -223,6 +223,68 @@ class ApiClient {
   async getWalletTransactions(): Promise<{ transactions: any[] }> {
     return this.request('/wallet/transactions');
   }
+
+  // ============================================
+  // Instance Betting
+  // ============================================
+
+  async getInstanceMarkets(matchId: string, sport?: string, homeTeam?: string, awayTeam?: string): Promise<{ markets: InstanceMarket[] }> {
+    let params = `?sport=${sport || 'cricket'}`;
+    if (homeTeam) params += `&homeTeam=${encodeURIComponent(homeTeam)}`;
+    if (awayTeam) params += `&awayTeam=${encodeURIComponent(awayTeam)}`;
+    return this.request(`/instance/markets/${matchId}${params}`);
+  }
+
+  async getAllInstanceMarkets(): Promise<{ markets: InstanceMarket[] }> {
+    return this.request('/instance/markets');
+  }
+
+  async placeInstanceBet(data: {
+    marketId: string;
+    outcomeId: string;
+    stake: string;
+  }): Promise<{ bet: ApiBet; message: string; market: string }> {
+    return this.request('/instance/bet', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getRealtimeUpdate(matchId: string): Promise<RealtimeUpdate> {
+    return this.request(`/live/realtime/${matchId}`);
+  }
+}
+
+export interface InstanceMarket {
+  id: string;
+  matchId: string;
+  instanceType: string;
+  name: string;
+  description: string;
+  openTime: string;
+  closeTime: string;
+  status: 'PENDING' | 'OPEN' | 'SUSPENDED' | 'CLOSED' | 'SETTLED';
+  eventReference: string;
+  outcomes: InstanceOutcome[];
+}
+
+export interface InstanceOutcome {
+  id: string;
+  marketId: string;
+  name: string;
+  odds: number;
+  probability: number;
+}
+
+export interface RealtimeUpdate {
+  matchId: string;
+  scoreHome?: string;
+  scoreAway?: string;
+  scoreDetails?: string;
+  currentOver?: number;
+  currentBall?: number;
+  status: string;
+  timestamp: string;
 }
 
 export const api = new ApiClient();

@@ -7,6 +7,7 @@ import bcrypt from "bcrypt";
 import { insertUserSchema, insertBetSchema } from "@shared/schema";
 import { oddsApiService, POPULAR_SPORTS } from "./oddsApi";
 import { cricketApiService } from "./cricketApi";
+import { instanceBettingService } from "./instanceBetting";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -477,6 +478,181 @@ export async function registerRoutes(
       const userId = (req.user as any).id;
       const transactions = await storage.getUserTransactions(userId);
       res.json({ transactions });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // Instance Betting Routes
+  // ============================================
+
+  // Get active instance markets for a match
+  app.get("/api/instance/markets/:matchId", async (req, res) => {
+    try {
+      const { matchId } = req.params;
+      const sport = req.query.sport as string || 'cricket';
+      const homeTeam = req.query.homeTeam as string;
+      const awayTeam = req.query.awayTeam as string;
+
+      instanceBettingService.checkAndCloseExpiredMarkets();
+      instanceBettingService.clearExpiredMarketsForMatch(matchId);
+
+      let markets = instanceBettingService.getActiveMarketsForMatch(matchId);
+
+      if (markets.length === 0) {
+        let currentOver: number | undefined;
+        let currentBall: number | undefined;
+
+        if (matchId.startsWith('cricket-')) {
+          try {
+            const cleanId = matchId.replace('cricket-', '');
+            const matchInfo = await cricketApiService.getMatchInfo(cleanId);
+            if (matchInfo.score && matchInfo.score.length > 0) {
+              const latestInning = matchInfo.score[matchInfo.score.length - 1];
+              currentOver = Math.floor(latestInning.o);
+              currentBall = Math.round((latestInning.o - currentOver) * 10);
+            }
+          } catch {
+            // Ignore errors, use random values
+          }
+        }
+
+        markets = instanceBettingService.generateLiveInstanceMarkets(matchId, sport, homeTeam, awayTeam, currentOver, currentBall);
+      }
+
+      res.json({ markets });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all active instance markets
+  app.get("/api/instance/markets", async (req, res) => {
+    try {
+      instanceBettingService.checkAndCloseExpiredMarkets();
+      const markets = instanceBettingService.getAllActiveMarkets();
+      res.json({ markets });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Place an instance bet
+  app.post("/api/instance/bet", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { marketId, outcomeId, stake } = req.body;
+
+      if (!marketId || !outcomeId || !stake) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const stakeNum = parseFloat(stake);
+      const currentBalance = parseFloat(user.balance);
+
+      if (stakeNum <= 0) {
+        return res.status(400).json({ error: "Invalid stake amount" });
+      }
+
+      if (stakeNum > currentBalance) {
+        return res.status(400).json({ error: "Insufficient balance" });
+      }
+
+      instanceBettingService.checkAndCloseExpiredMarkets();
+      const markets = instanceBettingService.getAllActiveMarkets();
+      const market = markets.find(m => m.id === marketId);
+
+      if (!market || market.status !== 'OPEN') {
+        return res.status(400).json({ error: "Market is closed or does not exist" });
+      }
+
+      const outcome = market.outcomes.find(o => o.id === outcomeId);
+      if (!outcome) {
+        return res.status(400).json({ error: "Outcome not found" });
+      }
+
+      const potentialProfit = stakeNum * (outcome.odds - 1);
+
+      const bet = await storage.createBet({
+        userId,
+        matchId: market.matchId,
+        marketId: market.id,
+        runnerId: outcome.id,
+        type: 'BACK',
+        odds: outcome.odds.toString(),
+        stake: stake,
+        potentialProfit: potentialProfit.toString(),
+      });
+
+      const newBalance = currentBalance - stakeNum;
+      await storage.updateUserBalance(userId, newBalance);
+
+      await storage.createWalletTransaction({
+        userId,
+        amount: `-${stake}`,
+        type: 'BET_PLACED',
+        description: `Instance bet: ${market.name} - ${outcome.name}`,
+      });
+
+      res.json({ 
+        bet,
+        message: `Bet placed on ${outcome.name} @ ${outcome.odds}`,
+        market: market.name,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Real-time score update endpoint (polling) - scores only, no market generation
+  app.get("/api/live/realtime/:matchId", async (req, res) => {
+    try {
+      const { matchId } = req.params;
+
+      if (matchId.startsWith('cricket-')) {
+        const cleanId = matchId.replace('cricket-', '');
+        const matchInfo = await cricketApiService.getMatchInfo(cleanId);
+
+        let scoreHome: string | null = null;
+        let scoreAway: string | null = null;
+        let scoreDetails: string | null = null;
+        let currentOver: number | null = null;
+        let currentBall: number | null = null;
+
+        if (matchInfo.score && matchInfo.score.length > 0) {
+          const latestInning = matchInfo.score[matchInfo.score.length - 1];
+          scoreHome = `${latestInning.r}/${latestInning.w}`;
+          currentOver = Math.floor(latestInning.o);
+          currentBall = Math.round((latestInning.o - currentOver) * 10);
+          scoreDetails = matchInfo.status;
+        }
+
+        instanceBettingService.clearExpiredMarketsForMatch(matchId);
+
+        res.json({
+          matchId,
+          scoreHome,
+          scoreAway,
+          scoreDetails,
+          currentOver,
+          currentBall,
+          status: matchInfo.matchEnded ? 'FINISHED' : matchInfo.matchStarted ? 'LIVE' : 'UPCOMING',
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        res.json({
+          matchId,
+          message: 'Real-time updates available for cricket matches',
+          timestamp: new Date().toISOString(),
+        });
+      }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
