@@ -56,7 +56,8 @@ export interface OddsApiScore {
 class OddsApiService {
   private async fetch<T>(endpoint: string): Promise<T> {
     if (!ODDS_API_KEY) {
-      throw new Error('ODDS_API_KEY is not configured');
+      console.warn('ODDS_API_KEY is not configured - returning empty data');
+      return [] as unknown as T;
     }
 
     const url = `${BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}apiKey=${ODDS_API_KEY}`;
@@ -65,6 +66,11 @@ class OddsApiService {
     
     if (!response.ok) {
       const text = await response.text();
+      // Handle quota exceeded gracefully
+      if (response.status === 401 || response.status === 429 || text.includes('quota') || text.includes('usage')) {
+        console.warn('Odds API quota exceeded - returning empty data');
+        return [] as unknown as T;
+      }
       throw new Error(`Odds API error: ${response.status} - ${text}`);
     }
 
