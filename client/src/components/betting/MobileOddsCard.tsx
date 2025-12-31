@@ -5,17 +5,31 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { api, InstanceMarket, InstanceOutcome } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
 
 interface MobileOddsCardProps {
   matchId: string;
   onBetSelect: (match: Match, runner: Runner, type: 'BACK' | 'LAY', odds: number) => void;
+  onInstanceBetSelect?: (market: InstanceMarket, outcome: InstanceOutcome, matchId: string) => void;
 }
 
-export function MobileOddsCard({ matchId, onBetSelect }: MobileOddsCardProps) {
+export function MobileOddsCard({ matchId, onBetSelect, onInstanceBetSelect }: MobileOddsCardProps) {
   const match = useStore(state => state.matches.find(m => m.id === matchId));
   const [isExpanded, setIsExpanded] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+  const [, navigate] = useLocation();
+
+  const { data: instanceData } = useQuery({
+    queryKey: ['instance-markets', matchId],
+    queryFn: () => api.getInstanceMarkets(matchId, match?.sport || 'cricket', match?.homeTeam, match?.awayTeam),
+    refetchInterval: 15000,
+    enabled: !!match && match.status === 'LIVE' && match.sport === 'cricket',
+  });
+
+  const instanceMarkets = instanceData?.markets || [];
 
   useEffect(() => {
     const unsubscribe = useStore.subscribe((state, prevState) => {
@@ -34,6 +48,14 @@ export function MobileOddsCard({ matchId, onBetSelect }: MobileOddsCardProps) {
     });
     return unsubscribe;
   }, [matchId]);
+
+  const getTimeRemaining = (closeTime: string) => {
+    const remaining = new Date(closeTime).getTime() - Date.now();
+    if (remaining <= 0) return 'Closed';
+    const seconds = Math.floor(remaining / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    return `${Math.floor(seconds / 60)}m`;
+  };
 
   if (!match) return null;
 
@@ -130,36 +152,50 @@ export function MobileOddsCard({ matchId, onBetSelect }: MobileOddsCardProps) {
 
         <CollapsibleContent>
           <div className="border-t border-border/50 p-3 space-y-3 bg-muted/20">
-            {isCricket && (
+            {isCricket && match.status === 'LIVE' && instanceMarkets.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Zap className="h-3 w-3 text-yellow-500" /> Quick Instance Betting
+                </h4>
+                {instanceMarkets.slice(0, 2).map((market) => (
+                  <div key={market.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium">{market.name}</span>
+                      <Badge variant="outline" className="text-[9px] bg-green-500/20 text-green-400 border-green-500/30">
+                        {getTimeRemaining(market.closeTime)}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {market.outcomes.slice(0, 4).map((outcome) => (
+                        <Button 
+                          key={outcome.id}
+                          variant="ghost" 
+                          size="sm"
+                          disabled={market.status !== 'OPEN'}
+                          className="h-12 text-[10px] font-bold bg-gradient-to-b from-primary/20 to-primary/5 border border-primary/20 flex flex-col gap-0.5"
+                          data-testid={`quick-instance-${outcome.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/match/${match.id}`);
+                          }}
+                        >
+                          <span className="truncate w-full">{outcome.name}</span>
+                          <span className="text-primary font-bold">{outcome.odds.toFixed(2)}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {isCricket && match.status === 'LIVE' && instanceMarkets.length === 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Zap className="h-3 w-3 text-yellow-500" /> Quick Markets
+                  <Zap className="h-3 w-3 text-yellow-500" /> Quick Instance Betting
                 </h4>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {['Next Ball', 'This Over', 'Session Runs'].map((market) => (
-                    <Button 
-                      key={market}
-                      variant="outline" 
-                      size="sm"
-                      className="h-8 text-[11px] font-medium"
-                      data-testid={`quick-market-${market.toLowerCase().replace(' ', '-')}`}
-                    >
-                      {market}
-                    </Button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {['Wicket', '4 Runs', '6 Runs', 'Dot Ball'].map((outcome) => (
-                    <Button 
-                      key={outcome}
-                      variant="ghost" 
-                      size="sm"
-                      className="h-10 text-[10px] font-bold bg-gradient-to-b from-primary/20 to-primary/5 border border-primary/20"
-                      data-testid={`outcome-${outcome.toLowerCase().replace(' ', '-')}`}
-                    >
-                      {outcome}
-                    </Button>
-                  ))}
+                <div className="text-center py-3 text-xs text-muted-foreground">
+                  Loading instance markets...
                 </div>
               </div>
             )}
