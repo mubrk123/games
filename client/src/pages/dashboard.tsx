@@ -1,6 +1,8 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { OddsCard } from "@/components/betting/OddsCard";
+import { MobileOddsCard } from "@/components/betting/MobileOddsCard";
 import { BetSlip } from "@/components/betting/BetSlip";
+import { MobileBetSlip } from "@/components/betting/MobileBetSlip";
 import { Match, Runner } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -11,7 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { api, ApiSport } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
@@ -216,7 +218,7 @@ export default function Dashboard() {
                 </TabsTrigger>
               </TabsList>
               
-              <TabsContent value="in-play" className="space-y-4 mt-4">
+              <TabsContent value="in-play" className="space-y-3 mt-4">
                 {matches.filter(m => m.status === 'LIVE').length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
                     <p className="text-lg font-medium">No live matches at the moment</p>
@@ -224,12 +226,14 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   matches.filter(m => m.status === 'LIVE').map(match => (
-                    <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                    isMobile 
+                      ? <MobileOddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                      : <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
                   ))
                 )}
               </TabsContent>
               
-              <TabsContent value="upcoming" className="space-y-4 mt-4">
+              <TabsContent value="upcoming" className="space-y-3 mt-4">
                 {matches.filter(m => m.status === 'UPCOMING').length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
                     <p className="text-lg font-medium">No upcoming matches</p>
@@ -237,7 +241,9 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   matches.filter(m => m.status === 'UPCOMING').map(match => (
-                    <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                    isMobile 
+                      ? <MobileOddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                      : <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
                   ))
                 )}
               </TabsContent>
@@ -270,10 +276,8 @@ export default function Dashboard() {
 
         {/* Mobile Bet Slip (Drawer) */}
         <Sheet open={!!selectedBet && isMobile} onOpenChange={(open) => !open && clearBet()}>
-          <SheetContent side="bottom" className="h-[80vh] rounded-t-xl">
-             <div className="h-full pt-6">
-                <BetSlip selectedBet={selectedBet} onClear={clearBet} />
-             </div>
+          <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl p-0">
+            <MobileBetSlip selectedBet={selectedBet} onClear={clearBet} />
           </SheetContent>
         </Sheet>
       </div>

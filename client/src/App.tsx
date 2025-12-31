@@ -9,6 +9,9 @@ import Dashboard from "@/pages/dashboard";
 import Casino from "@/pages/casino";
 import AdminPanel from "@/pages/admin";
 import Login from "@/pages/auth/login";
+import MyBets from "@/pages/my-bets";
+import Profile from "@/pages/profile";
+import MatchDetail from "@/pages/match-detail";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
@@ -82,6 +85,15 @@ function Router() {
       </Route>
       <Route path="/casino">
         <ProtectedRoute component={Casino} />
+      </Route>
+      <Route path="/my-bets">
+        <ProtectedRoute component={MyBets} />
+      </Route>
+      <Route path="/profile">
+        <ProtectedRoute component={Profile} />
+      </Route>
+      <Route path="/match/:id">
+        <ProtectedRoute component={MatchDetail} />
       </Route>
       <Route path="/admin">
         <ProtectedRoute component={AdminPanel} adminOnly={true} />
