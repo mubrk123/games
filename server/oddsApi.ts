@@ -161,9 +161,13 @@ class OddsApiService {
   private mapSportKey(sportKey: string): string {
     // Map The Odds API sport keys to our sport types
     if (sportKey.includes('cricket')) return 'cricket';
-    if (sportKey.includes('soccer') || sportKey.includes('football')) return 'football';
+    if (sportKey.includes('soccer')) return 'football';
     if (sportKey.includes('tennis')) return 'tennis';
     if (sportKey.includes('basketball')) return 'basketball';
+    if (sportKey.includes('americanfootball')) return 'football';
+    if (sportKey.includes('icehockey')) return 'football';
+    if (sportKey.includes('boxing') || sportKey.includes('mma')) return 'football';
+    if (sportKey.includes('rugby')) return 'football';
     return 'football'; // Default
   }
 }
@@ -172,14 +176,34 @@ export const oddsApiService = new OddsApiService();
 
 // Popular sports to fetch (The Odds API sport keys)
 export const POPULAR_SPORTS = [
+  // Cricket (available leagues)
+  'cricket_big_bash',     // Big Bash League (Australia T20)
+  
+  // Football/Soccer
   'soccer_epl',           // English Premier League
   'soccer_spain_la_liga', // La Liga
   'soccer_germany_bundesliga', // Bundesliga
   'soccer_italy_serie_a', // Serie A
+  'soccer_france_ligue_one', // Ligue 1
+  'soccer_argentina_primera_division', // Argentine Primera
+  'soccer_australia_aleague', // A-League
+  
+  // Basketball
   'basketball_nba',       // NBA
+  'basketball_ncaab',     // College Basketball
   'basketball_euroleague', // Euroleague
-  'tennis_atp_french_open', // ATP Tennis
+  'basketball_nbl',       // AU National Basketball League
+  
+  // Tennis (when tournaments are active)
+  'tennis_atp_aus_open',  // Australian Open
+  
+  // American Football
   'americanfootball_nfl', // NFL
-  'cricket_ipl',          // IPL Cricket
-  'cricket_test_match',   // Test Cricket
+  'americanfootball_ncaaf', // College Football
+  
+  // Other popular sports
+  'icehockey_nhl',        // NHL
+  'boxing_boxing',        // Boxing
+  'mma_mixed_martial_arts', // MMA/UFC
+  'rugbyleague_nrl',      // NRL (Rugby League)
 ];

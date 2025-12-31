@@ -102,14 +102,17 @@ export default function Dashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sports</SelectItem>
+                  <SelectItem value="cricket_big_bash">Cricket - Big Bash</SelectItem>
                   <SelectItem value="soccer_epl">Premier League</SelectItem>
                   <SelectItem value="soccer_spain_la_liga">La Liga</SelectItem>
+                  <SelectItem value="soccer_italy_serie_a">Serie A</SelectItem>
                   <SelectItem value="basketball_nba">NBA</SelectItem>
+                  <SelectItem value="basketball_ncaab">College Basketball</SelectItem>
                   <SelectItem value="americanfootball_nfl">NFL</SelectItem>
-                  <SelectItem value="tennis_atp_australian_open">Tennis ATP</SelectItem>
-                  {popularSports.map(sport => (
-                    <SelectItem key={sport.key} value={sport.key}>{sport.title}</SelectItem>
-                  ))}
+                  <SelectItem value="americanfootball_ncaaf">College Football</SelectItem>
+                  <SelectItem value="icehockey_nhl">NHL</SelectItem>
+                  <SelectItem value="boxing_boxing">Boxing</SelectItem>
+                  <SelectItem value="mma_mixed_martial_arts">MMA/UFC</SelectItem>
                 </SelectContent>
               </Select>
               <Button 
@@ -135,6 +138,13 @@ export default function Dashboard() {
             </Badge>
             <Badge 
               variant="outline" 
+              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'cricket_big_bash' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              onClick={() => setSelectedSport('cricket_big_bash')}
+            >
+              Cricket
+            </Badge>
+            <Badge 
+              variant="outline" 
               className={`cursor-pointer whitespace-nowrap ${selectedSport === 'soccer_epl' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
               onClick={() => setSelectedSport('soccer_epl')}
             >
@@ -149,10 +159,10 @@ export default function Dashboard() {
             </Badge>
             <Badge 
               variant="outline" 
-              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'tennis_atp_australian_open' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
-              onClick={() => setSelectedSport('tennis_atp_australian_open')}
+              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'icehockey_nhl' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              onClick={() => setSelectedSport('icehockey_nhl')}
             >
-              Tennis
+              Hockey
             </Badge>
             <Badge 
               variant="outline" 
