@@ -35,12 +35,12 @@ export default function Dashboard() {
     staleTime: 60000, // Cache for 1 minute
   });
 
-  // Fetch cricket matches separately (comprehensive cricket API)
+  // Fetch current cricket matches (live/upcoming only)
   const { data: cricketData } = useQuery({
-    queryKey: ['cricket-matches'],
+    queryKey: ['cricket-current'],
     queryFn: async () => {
       try {
-        const result = await api.getAllCricketMatches();
+        const result = await api.getCurrentCricketMatches();
         return result.matches || [];
       } catch (error) {
         console.error('Cricket API not configured:', error);
@@ -55,15 +55,15 @@ export default function Dashboard() {
   const { data: matchesData, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['live-matches', selectedSport],
     queryFn: async () => {
-      // For cricket, use the dedicated cricket API
+      // For cricket, use the dedicated cricket API (current matches for live/upcoming)
       if (selectedSport === 'cricket' || selectedSport === 'cricket_all') {
-        const result = await api.getAllCricketMatches();
+        const result = await api.getCurrentCricketMatches();
         return result.matches || [];
       } else if (selectedSport === 'all') {
-        // Combine general sports with cricket
+        // Combine general sports with cricket (current matches)
         const [sportsResult, cricketResult] = await Promise.all([
           api.getAllLiveEvents(),
-          api.getAllCricketMatches().catch(() => ({ matches: [] }))
+          api.getCurrentCricketMatches().catch(() => ({ matches: [] }))
         ]);
         return [...(sportsResult.matches || []), ...(cricketResult.matches || [])];
       } else {

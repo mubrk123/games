@@ -334,11 +334,19 @@ export async function registerRoutes(
   // Cricket API Routes (CricketData.org)
   // ============================================
 
-  // Get all current cricket matches (live)
+  // Get all current cricket matches (live and upcoming only)
   app.get("/api/cricket/current", async (req, res) => {
     try {
       const matches = await cricketApiService.getCurrentMatches();
-      const formattedMatches = matches.map(m => cricketApiService.convertToMatch(m));
+      const formattedMatches = matches
+        .map(m => cricketApiService.convertToMatch(m))
+        .filter(m => m.status === 'LIVE' || m.status === 'UPCOMING')
+        .sort((a, b) => {
+          // Live matches first
+          if (a.status === 'LIVE' && b.status !== 'LIVE') return -1;
+          if (b.status === 'LIVE' && a.status !== 'LIVE') return 1;
+          return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+        });
       res.json({ matches: formattedMatches });
     } catch (error: any) {
       console.error('Failed to fetch current cricket matches:', error);
