@@ -112,12 +112,18 @@ class OddsApiService {
     const bookmaker = event.bookmakers[0];
     const h2hMarket = bookmaker?.markets.find(m => m.key === 'h2h');
     
-    // Determine if event is live (within 2 hours of commence time)
+    // Determine if event is live or upcoming
+    // The Odds API returns events that are about to start or in progress
+    // We consider a match "LIVE" if it has started (commence_time is in the past)
+    // and not finished yet (within reasonable game duration ~4 hours)
     const now = new Date();
     const commenceTime = new Date(event.commence_time);
-    const hoursUntilStart = (commenceTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-    const isLive = hoursUntilStart <= 0 && hoursUntilStart > -3; // Within 3 hours after start
-    const isUpcoming = hoursUntilStart > 0;
+    const minutesUntilStart = (commenceTime.getTime() - now.getTime()) / (1000 * 60);
+    
+    // Match is LIVE if it started (negative minutes) but within 4 hours of start
+    const isLive = minutesUntilStart <= 0 && minutesUntilStart > -240;
+    // Match is UPCOMING if it starts within 24 hours
+    const isUpcoming = minutesUntilStart > 0;
 
     const marketId = `${event.id}-market`;
 

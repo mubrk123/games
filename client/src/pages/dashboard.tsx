@@ -15,7 +15,7 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
-  const { matches, setMatches } = useStore();
+  const { matches, setMatches, currentUser } = useStore();
   const [selectedSport, setSelectedSport] = useState<string>('all');
   const [selectedBet, setSelectedBet] = useState<{
     match: Match;
@@ -25,19 +25,20 @@ export default function Dashboard() {
   } | null>(null);
   const isMobile = useIsMobile();
 
-  // Fetch available sports
+  // Fetch available sports (only when user is authenticated)
   const { data: sportsData } = useQuery({
-    queryKey: ['live-sports'],
+    queryKey: ['live-sports', currentUser?.id],
     queryFn: async () => {
       const result = await api.getLiveSports();
       return result.sports;
     },
     staleTime: 60000, // Cache for 1 minute
+    enabled: !!currentUser, // Only fetch when logged in
   });
 
-  // Fetch live events based on selected sport
+  // Fetch live events based on selected sport (only when user is authenticated)
   const { data: matchesData, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['live-matches', selectedSport],
+    queryKey: ['live-matches', selectedSport, currentUser?.id],
     queryFn: async () => {
       if (selectedSport === 'all') {
         const result = await api.getAllLiveEvents();
@@ -48,6 +49,8 @@ export default function Dashboard() {
       }
     },
     refetchInterval: 30000, // Refetch every 30 seconds for live updates
+    enabled: !!currentUser, // Only fetch when logged in
+    retry: 2,
   });
 
   // Update store when matches change
