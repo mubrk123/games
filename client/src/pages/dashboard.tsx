@@ -6,14 +6,17 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { api } from "@/lib/api";
+import { api, ApiSport } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const { matches, setMatches } = useStore();
-  const currentUser = useStore(state => state.currentUser);
+  const [selectedSport, setSelectedSport] = useState<string>('all');
   const [selectedBet, setSelectedBet] = useState<{
     match: Match;
     runner: Runner;
@@ -22,14 +25,29 @@ export default function Dashboard() {
   } | null>(null);
   const isMobile = useIsMobile();
 
-  // Fetch matches from API
-  const { data: matchesData, isLoading } = useQuery({
-    queryKey: ['matches'],
+  // Fetch available sports
+  const { data: sportsData } = useQuery({
+    queryKey: ['live-sports'],
     queryFn: async () => {
-      const result = await api.getMatches();
-      return result.matches;
+      const result = await api.getLiveSports();
+      return result.sports;
     },
-    refetchInterval: 10000, // Refetch every 10 seconds for live updates
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  // Fetch live events based on selected sport
+  const { data: matchesData, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ['live-matches', selectedSport],
+    queryFn: async () => {
+      if (selectedSport === 'all') {
+        const result = await api.getAllLiveEvents();
+        return result.matches;
+      } else {
+        const result = await api.getLiveOdds(selectedSport);
+        return result.matches;
+      }
+    },
+    refetchInterval: 30000, // Refetch every 30 seconds for live updates
   });
 
   // Update store when matches change
@@ -41,8 +59,8 @@ export default function Dashboard() {
           ...market,
           runners: market.runners.map(r => ({
             ...r,
-            backOdds: parseFloat(r.backOdds),
-            layOdds: parseFloat(r.layOdds),
+            backOdds: typeof r.backOdds === 'string' ? parseFloat(r.backOdds) : r.backOdds,
+            layOdds: typeof r.layOdds === 'string' ? parseFloat(r.layOdds) : r.layOdds,
           }))
         }))
       }));
@@ -56,18 +74,14 @@ export default function Dashboard() {
 
   const clearBet = () => setSelectedBet(null);
 
-  if (isLoading) {
-    return (
-      <AppShell>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-            <p className="mt-4 text-muted-foreground">Loading matches...</p>
-          </div>
-        </div>
-      </AppShell>
-    );
-  }
+  // Group sports by category
+  const popularSports = sportsData?.filter(s => 
+    s.key.includes('soccer') || 
+    s.key.includes('basketball') || 
+    s.key.includes('football') ||
+    s.key.includes('cricket') ||
+    s.key.includes('tennis')
+  ).slice(0, 10) || [];
 
   return (
     <AppShell>
@@ -75,49 +89,124 @@ export default function Dashboard() {
         {/* Main Content - Matches */}
         <div className="col-span-12 lg:col-span-9 flex flex-col gap-6 overflow-y-auto pr-2 pb-20">
           
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <h2 className="text-2xl font-heading font-bold flex items-center gap-2">
               <span className="w-2 h-8 bg-primary rounded-sm inline-block"></span>
-              Live Highlights
+              Live Sports Betting
             </h2>
-            <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 cursor-pointer whitespace-nowrap">Cricket</Badge>
-              <Badge variant="outline" className="hover:bg-accent cursor-pointer whitespace-nowrap">Football</Badge>
-              <Badge variant="outline" className="hover:bg-accent cursor-pointer whitespace-nowrap">Tennis</Badge>
+            <div className="flex items-center gap-2">
+              <Select value={selectedSport} onValueChange={setSelectedSport}>
+                <SelectTrigger className="w-[200px]" data-testid="select-sport">
+                  <SelectValue placeholder="Select Sport" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sports</SelectItem>
+                  <SelectItem value="soccer_epl">Premier League</SelectItem>
+                  <SelectItem value="soccer_spain_la_liga">La Liga</SelectItem>
+                  <SelectItem value="basketball_nba">NBA</SelectItem>
+                  <SelectItem value="americanfootball_nfl">NFL</SelectItem>
+                  <SelectItem value="tennis_atp_australian_open">Tennis ATP</SelectItem>
+                  {popularSports.map(sport => (
+                    <SelectItem key={sport.key} value={sport.key}>{sport.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                data-testid="button-refresh"
+              >
+                <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+              </Button>
             </div>
           </div>
 
-          <Tabs defaultValue="in-play" className="w-full">
-            <TabsList className="bg-card/50 border border-border/50 w-full justify-start overflow-x-auto">
-              <TabsTrigger value="in-play" className="flex-1 sm:flex-none">In-Play</TabsTrigger>
-              <TabsTrigger value="upcoming" className="flex-1 sm:flex-none">Upcoming</TabsTrigger>
-              <TabsTrigger value="popular" className="flex-1 sm:flex-none">Popular</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="in-play" className="space-y-4 mt-4">
-              {matches.filter(m => m.status === 'LIVE').length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  No live matches at the moment
-                </div>
-              ) : (
-                matches.filter(m => m.status === 'LIVE').map(match => (
-                  <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
-                ))
-              )}
-            </TabsContent>
-            
-            <TabsContent value="upcoming" className="space-y-4 mt-4">
-              {matches.filter(m => m.status === 'UPCOMING').length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  No upcoming matches
-                </div>
-              ) : (
-                matches.filter(m => m.status === 'UPCOMING').map(match => (
-                  <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
-                ))
-              )}
-            </TabsContent>
-          </Tabs>
+          {/* Sport Filter Badges */}
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            <Badge 
+              variant="outline" 
+              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'all' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              onClick={() => setSelectedSport('all')}
+            >
+              All
+            </Badge>
+            <Badge 
+              variant="outline" 
+              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'soccer_epl' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              onClick={() => setSelectedSport('soccer_epl')}
+            >
+              Football
+            </Badge>
+            <Badge 
+              variant="outline" 
+              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'basketball_nba' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              onClick={() => setSelectedSport('basketball_nba')}
+            >
+              Basketball
+            </Badge>
+            <Badge 
+              variant="outline" 
+              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'tennis_atp_australian_open' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              onClick={() => setSelectedSport('tennis_atp_australian_open')}
+            >
+              Tennis
+            </Badge>
+            <Badge 
+              variant="outline" 
+              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'americanfootball_nfl' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              onClick={() => setSelectedSport('americanfootball_nfl')}
+            >
+              NFL
+            </Badge>
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+                <p className="mt-4 text-muted-foreground">Loading live matches...</p>
+              </div>
+            </div>
+          ) : (
+            <Tabs defaultValue="in-play" className="w-full">
+              <TabsList className="bg-card/50 border border-border/50 w-full justify-start overflow-x-auto">
+                <TabsTrigger value="in-play" className="flex-1 sm:flex-none" data-testid="tab-inplay">
+                  In-Play ({matches.filter(m => m.status === 'LIVE').length})
+                </TabsTrigger>
+                <TabsTrigger value="upcoming" className="flex-1 sm:flex-none" data-testid="tab-upcoming">
+                  Upcoming ({matches.filter(m => m.status === 'UPCOMING').length})
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="in-play" className="space-y-4 mt-4">
+                {matches.filter(m => m.status === 'LIVE').length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
+                    <p className="text-lg font-medium">No live matches at the moment</p>
+                    <p className="text-sm mt-2">Check the Upcoming tab for scheduled events</p>
+                  </div>
+                ) : (
+                  matches.filter(m => m.status === 'LIVE').map(match => (
+                    <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                  ))
+                )}
+              </TabsContent>
+              
+              <TabsContent value="upcoming" className="space-y-4 mt-4">
+                {matches.filter(m => m.status === 'UPCOMING').length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
+                    <p className="text-lg font-medium">No upcoming matches</p>
+                    <p className="text-sm mt-2">Try selecting a different sport</p>
+                  </div>
+                ) : (
+                  matches.filter(m => m.status === 'UPCOMING').map(match => (
+                    <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                  ))
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
 
           {/* Quick Casino Access */}
           <div className="mt-8">

@@ -29,7 +29,7 @@ export interface ApiMatch {
 
 export interface ApiMarket {
   id: string;
-  matchId: string;
+  matchId?: string;
   name: string;
   status: 'OPEN' | 'SUSPENDED' | 'CLOSED';
   runners: ApiRunner[];
@@ -37,11 +37,20 @@ export interface ApiMarket {
 
 export interface ApiRunner {
   id: string;
-  marketId: string;
+  marketId?: string;
   name: string;
-  backOdds: string;
-  layOdds: string;
+  backOdds: string | number;
+  layOdds: string | number;
   volume: number;
+}
+
+export interface ApiSport {
+  key: string;
+  group: string;
+  title: string;
+  description: string;
+  active: boolean;
+  has_outrights: boolean;
 }
 
 export interface ApiBet {
@@ -141,11 +150,31 @@ class ApiClient {
   }
 
   // ============================================
-  // Matches
+  // Matches (Database)
   // ============================================
   
   async getMatches(): Promise<{ matches: ApiMatch[] }> {
     return this.request('/matches');
+  }
+
+  // ============================================
+  // Live Odds (The Odds API)
+  // ============================================
+  
+  async getLiveSports(): Promise<{ sports: ApiSport[] }> {
+    return this.request('/live/sports');
+  }
+
+  async getLiveOdds(sportKey: string): Promise<{ matches: ApiMatch[] }> {
+    return this.request(`/live/odds/${sportKey}`);
+  }
+
+  async getAllLiveEvents(): Promise<{ matches: ApiMatch[] }> {
+    return this.request('/live/all');
+  }
+
+  async getLiveScores(sportKey: string): Promise<{ scores: any[] }> {
+    return this.request(`/live/scores/${sportKey}`);
   }
 
   // ============================================

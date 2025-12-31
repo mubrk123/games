@@ -25,7 +25,7 @@ export interface Match {
 
 export interface Market {
   id: string;
-  matchId: string;
+  matchId?: string;
   name: string;
   status: 'OPEN' | 'SUSPENDED' | 'CLOSED';
   runners: Runner[];
@@ -33,7 +33,7 @@ export interface Market {
 
 export interface Runner {
   id: string;
-  marketId: string;
+  marketId?: string;
   name: string;
   backOdds: number;
   layOdds: number;

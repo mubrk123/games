@@ -5,6 +5,7 @@ import { setupAuth, requireAuth, requireAdmin } from "./auth";
 import passport from "passport";
 import bcrypt from "bcrypt";
 import { insertUserSchema, insertBetSchema } from "@shared/schema";
+import { oddsApiService, POPULAR_SPORTS } from "./oddsApi";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -209,7 +210,7 @@ export async function registerRoutes(
   // Match Routes
   // ============================================
   
-  // Get all matches
+  // Get all matches (from database - legacy)
   app.get("/api/matches", requireAuth, async (req, res) => {
     try {
       const matches = await storage.getAllMatches();
@@ -232,6 +233,90 @@ export async function registerRoutes(
 
       res.json({ matches: matchesWithDetails });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // Live Odds Routes (The Odds API)
+  // ============================================
+  
+  // Get available sports
+  app.get("/api/live/sports", requireAuth, async (req, res) => {
+    try {
+      const sports = await oddsApiService.getSports();
+      // Filter to only active sports
+      const activeSports = sports.filter(s => s.active);
+      res.json({ sports: activeSports });
+    } catch (error: any) {
+      console.error('Failed to fetch sports:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get live events with odds for a specific sport
+  app.get("/api/live/odds/:sportKey", requireAuth, async (req, res) => {
+    try {
+      const { sportKey } = req.params;
+      const events = await oddsApiService.getOdds(sportKey);
+      
+      // Convert to our match format
+      const matches = events.map(event => oddsApiService.convertToMatch(event));
+      
+      res.json({ matches });
+    } catch (error: any) {
+      console.error(`Failed to fetch odds for ${req.params.sportKey}:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all live events across popular sports
+  app.get("/api/live/all", requireAuth, async (req, res) => {
+    try {
+      const allMatches: any[] = [];
+      
+      // Use the exported POPULAR_SPORTS list (limit to first 6 to avoid API rate limits)
+      const sportsToFetch = POPULAR_SPORTS.slice(0, 6);
+      
+      const results = await Promise.allSettled(
+        sportsToFetch.map(async (sportKey) => {
+          try {
+            const events = await oddsApiService.getOdds(sportKey);
+            return events.map(event => oddsApiService.convertToMatch(event));
+          } catch (e) {
+            return [];
+          }
+        })
+      );
+      
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          allMatches.push(...result.value);
+        }
+      });
+      
+      // Sort by status (LIVE first) then by start time
+      allMatches.sort((a, b) => {
+        if (a.status === 'LIVE' && b.status !== 'LIVE') return -1;
+        if (b.status === 'LIVE' && a.status !== 'LIVE') return 1;
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+      });
+      
+      res.json({ matches: allMatches });
+    } catch (error: any) {
+      console.error('Failed to fetch all live events:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get live scores for a sport
+  app.get("/api/live/scores/:sportKey", requireAuth, async (req, res) => {
+    try {
+      const { sportKey } = req.params;
+      const scores = await oddsApiService.getScores(sportKey);
+      res.json({ scores });
+    } catch (error: any) {
+      console.error(`Failed to fetch scores for ${req.params.sportKey}:`, error);
       res.status(500).json({ error: error.message });
     }
   });
