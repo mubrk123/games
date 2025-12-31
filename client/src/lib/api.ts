@@ -254,6 +254,43 @@ class ApiClient {
   async getRealtimeUpdate(matchId: string): Promise<RealtimeUpdate> {
     return this.request(`/live/realtime/${matchId}`);
   }
+
+  // ============================================
+  // Casino
+  // ============================================
+
+  async getCasinoGames(): Promise<{ games: CasinoGame[] }> {
+    return this.request('/casino/games');
+  }
+
+  async getCasinoHistory(): Promise<{ history: CasinoBet[] }> {
+    return this.request('/casino/history');
+  }
+
+  async playSlots(betAmount: number, clientSeed?: string): Promise<SlotsResult> {
+    return this.request('/casino/slots/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, clientSeed }),
+    });
+  }
+
+  async playCrash(betAmount: number, cashoutMultiplier: number, clientSeed?: string): Promise<CrashResult> {
+    return this.request('/casino/crash/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, cashoutMultiplier, clientSeed }),
+    });
+  }
+
+  async playDice(betAmount: number, prediction: 'high' | 'low', target: number, clientSeed?: string): Promise<DiceResult> {
+    return this.request('/casino/dice/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, prediction, target, clientSeed }),
+    });
+  }
+
+  async verifyFairness(roundId: string): Promise<FairnessVerification> {
+    return this.request(`/casino/verify/${roundId}`);
+  }
 }
 
 export interface InstanceMarket {
@@ -286,6 +323,88 @@ export interface RealtimeUpdate {
   currentBall?: number;
   status: string;
   timestamp: string;
+}
+
+export interface CasinoGame {
+  id: string;
+  name: string;
+  slug: string;
+  type: 'slots' | 'crash' | 'dice' | 'roulette' | 'blackjack';
+  description: string | null;
+  minBet: string;
+  maxBet: string;
+  houseEdge: string;
+  isActive: boolean;
+}
+
+export interface CasinoBet {
+  id: string;
+  userId: string;
+  roundId: string;
+  gameId: string;
+  betAmount: string;
+  betChoice: string | null;
+  payout: string | null;
+  profit: string | null;
+  isWin: boolean | null;
+  createdAt: string;
+}
+
+export interface SlotsResult {
+  roundId: string;
+  result: {
+    reels: number[][];
+    symbols: string[][];
+    multiplier: number;
+    isWin: boolean;
+  };
+  betAmount: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export interface CrashResult {
+  roundId: string;
+  crashPoint: number;
+  cashoutMultiplier: number;
+  isWin: boolean;
+  betAmount: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export interface DiceResult {
+  roundId: string;
+  roll: number;
+  prediction: 'high' | 'low';
+  target: number;
+  isWin: boolean;
+  multiplier: number;
+  betAmount: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export interface FairnessVerification {
+  roundId: string;
+  serverSeed: string;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+  isValid: boolean;
+  result: any;
 }
 
 export const api = new ApiClient();

@@ -10,6 +10,8 @@ export const betStatusEnum = pgEnum('bet_status', ['OPEN', 'WON', 'LOST', 'VOID'
 export const matchStatusEnum = pgEnum('match_status', ['LIVE', 'UPCOMING', 'FINISHED']);
 export const marketStatusEnum = pgEnum('market_status', ['OPEN', 'SUSPENDED', 'CLOSED']);
 export const sportEnum = pgEnum('sport', ['cricket', 'football', 'tennis', 'basketball']);
+export const casinoGameTypeEnum = pgEnum('casino_game_type', ['slots', 'crash', 'dice', 'roulette', 'blackjack']);
+export const casinoRoundStatusEnum = pgEnum('casino_round_status', ['PENDING', 'ACTIVE', 'COMPLETED']);
 
 // Users Table
 export const users = pgTable("users", {
@@ -80,8 +82,51 @@ export const walletTransactions = pgTable("wallet_transactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  type: text("type").notNull(), // 'CREDIT', 'DEBIT', 'BET_PLACED', 'BET_WON', 'BET_LOST'
+  type: text("type").notNull(), // 'CREDIT', 'DEBIT', 'BET_PLACED', 'BET_WON', 'BET_LOST', 'CASINO_BET', 'CASINO_WIN'
   description: text("description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Casino Games Table (game metadata)
+export const casinoGames = pgTable("casino_games", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  type: casinoGameTypeEnum("type").notNull(),
+  description: text("description"),
+  minBet: decimal("min_bet", { precision: 10, scale: 2 }).notNull().default('10'),
+  maxBet: decimal("max_bet", { precision: 10, scale: 2 }).notNull().default('10000'),
+  houseEdge: decimal("house_edge", { precision: 5, scale: 4 }).notNull().default('0.02'),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Casino Rounds Table (game sessions/rounds)
+export const casinoRounds = pgTable("casino_rounds", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  gameId: varchar("game_id").notNull().references(() => casinoGames.id, { onDelete: 'cascade' }),
+  serverSeed: text("server_seed").notNull(),
+  serverSeedHash: text("server_seed_hash").notNull(),
+  clientSeed: text("client_seed"),
+  nonce: integer("nonce").notNull().default(0),
+  result: text("result"), // JSON string of game result
+  multiplier: decimal("multiplier", { precision: 10, scale: 4 }),
+  status: casinoRoundStatusEnum("status").notNull().default('PENDING'),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+// Casino Bets Table (player bets on rounds)
+export const casinoBets = pgTable("casino_bets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  roundId: varchar("round_id").notNull().references(() => casinoRounds.id, { onDelete: 'cascade' }),
+  gameId: varchar("game_id").notNull().references(() => casinoGames.id, { onDelete: 'cascade' }),
+  betAmount: decimal("bet_amount", { precision: 10, scale: 2 }).notNull(),
+  betChoice: text("bet_choice"), // e.g., "high", "red", specific number, etc.
+  payout: decimal("payout", { precision: 10, scale: 2 }),
+  profit: decimal("profit", { precision: 10, scale: 2 }),
+  isWin: boolean("is_win"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -129,6 +174,22 @@ export const insertWalletTransactionSchema = createInsertSchema(walletTransactio
   createdAt: true,
 });
 
+export const insertCasinoGameSchema = createInsertSchema(casinoGames).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCasinoRoundSchema = createInsertSchema(casinoRounds).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export const insertCasinoBetSchema = createInsertSchema(casinoBets).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -148,3 +209,12 @@ export type Bet = typeof bets.$inferSelect;
 
 export type InsertWalletTransaction = z.infer<typeof insertWalletTransactionSchema>;
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
+
+export type InsertCasinoGame = z.infer<typeof insertCasinoGameSchema>;
+export type CasinoGame = typeof casinoGames.$inferSelect;
+
+export type InsertCasinoRound = z.infer<typeof insertCasinoRoundSchema>;
+export type CasinoRound = typeof casinoRounds.$inferSelect;
+
+export type InsertCasinoBet = z.infer<typeof insertCasinoBetSchema>;
+export type CasinoBet = typeof casinoBets.$inferSelect;

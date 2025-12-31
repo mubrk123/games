@@ -7,6 +7,9 @@ import { useStore } from "@/lib/store";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Casino from "@/pages/casino";
+import SlotsGame from "@/pages/casino/slots";
+import CrashGame from "@/pages/casino/crash";
+import DiceGame from "@/pages/casino/dice";
 import AdminPanel from "@/pages/admin";
 import Login from "@/pages/auth/login";
 import MyBets from "@/pages/my-bets";
@@ -22,7 +25,7 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
 
   useEffect(() => {
     if (!currentUser) {
-      setLocation('/login');
+      setLocation('/auth/login');
     } else if (adminOnly && currentUser.role !== 'ADMIN') {
       setLocation('/');
     }
@@ -76,7 +79,13 @@ function Router() {
 
   return (
     <Switch>
-      <Route path="/login" component={Login} />
+      <Route path="/login">
+        {() => {
+          window.location.href = '/auth/login';
+          return null;
+        }}
+      </Route>
+      <Route path="/auth/login" component={Login} />
       <Route path="/">
         <ProtectedRoute component={Dashboard} />
       </Route>
@@ -85,6 +94,15 @@ function Router() {
       </Route>
       <Route path="/casino">
         <ProtectedRoute component={Casino} />
+      </Route>
+      <Route path="/casino/classic-slots">
+        <ProtectedRoute component={SlotsGame} />
+      </Route>
+      <Route path="/casino/crash">
+        <ProtectedRoute component={CrashGame} />
+      </Route>
+      <Route path="/casino/dice">
+        <ProtectedRoute component={DiceGame} />
       </Route>
       <Route path="/my-bets">
         <ProtectedRoute component={MyBets} />

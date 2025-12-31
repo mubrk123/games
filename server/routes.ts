@@ -8,6 +8,7 @@ import { insertUserSchema, insertBetSchema } from "@shared/schema";
 import { oddsApiService, POPULAR_SPORTS } from "./oddsApi";
 import { cricketApiService } from "./cricketApi";
 import { instanceBettingService } from "./instanceBetting";
+import { casinoService } from "./casinoService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -701,6 +702,105 @@ export async function registerRoutes(
       }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // Casino Routes
+  // ============================================
+  
+  // Get all active casino games
+  app.get("/api/casino/games", async (req, res) => {
+    try {
+      const games = await casinoService.getGames();
+      res.json({ games });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get user's casino history
+  app.get("/api/casino/history", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const history = await casinoService.getUserHistory(user.id);
+      res.json({ history });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Play slots
+  app.post("/api/casino/slots/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      const result = await casinoService.playSlots(user.id, betAmount, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  // Play crash
+  app.post("/api/casino/crash/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, cashoutMultiplier, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!cashoutMultiplier || cashoutMultiplier < 1.01) {
+        return res.status(400).json({ error: "Cashout multiplier must be at least 1.01" });
+      }
+      
+      const result = await casinoService.playCrash(user.id, betAmount, cashoutMultiplier, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  // Play dice
+  app.post("/api/casino/dice/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, prediction, target, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!prediction || !['high', 'low'].includes(prediction)) {
+        return res.status(400).json({ error: "Prediction must be 'high' or 'low'" });
+      }
+      
+      if (!target || target < 2 || target > 99) {
+        return res.status(400).json({ error: "Target must be between 2 and 99" });
+      }
+      
+      const result = await casinoService.playDice(user.id, betAmount, prediction, target, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  // Verify fairness
+  app.get("/api/casino/verify/:roundId", async (req, res) => {
+    try {
+      const { roundId } = req.params;
+      const verification = await casinoService.verifyFairness(roundId);
+      res.json(verification);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
     }
   });
 

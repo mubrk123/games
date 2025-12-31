@@ -1,4 +1,6 @@
-import { storage } from "./storage";
+import { storage, db } from "./storage";
+import { casinoGames } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 async function seed() {
@@ -170,6 +172,44 @@ async function seed() {
       console.log("✅ Created football match: Manchester United vs Liverpool");
     } else {
       console.log(`ℹ️  ${existingMatches.length} matches already exist in database`);
+    }
+
+    // Seed casino games
+    const existingCasinoGames = await db.select().from(casinoGames);
+    
+    if (existingCasinoGames.length === 0) {
+      await db.insert(casinoGames).values([
+        {
+          name: "Classic Slots",
+          slug: "classic-slots",
+          type: "slots",
+          description: "Spin the reels and match symbols to win big!",
+          minBet: "10",
+          maxBet: "10000",
+          houseEdge: "0.03",
+        },
+        {
+          name: "Crash",
+          slug: "crash",
+          type: "crash",
+          description: "Cash out before the multiplier crashes!",
+          minBet: "10",
+          maxBet: "10000",
+          houseEdge: "0.03",
+        },
+        {
+          name: "Dice",
+          slug: "dice",
+          type: "dice",
+          description: "Predict if the roll will be higher or lower than your target.",
+          minBet: "10",
+          maxBet: "10000",
+          houseEdge: "0.03",
+        },
+      ]);
+      console.log("✅ Created casino games: Slots, Crash, Dice");
+    } else {
+      console.log(`ℹ️  ${existingCasinoGames.length} casino games already exist`);
     }
 
     console.log("\n🎉 Database seeding completed successfully!");
