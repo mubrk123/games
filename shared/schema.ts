@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, timestamp, boolean, pgEnum, json } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, bigint, decimal, timestamp, boolean, pgEnum, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -115,7 +115,7 @@ export const casinoRounds = pgTable("casino_rounds", {
   serverSeed: text("server_seed").notNull(),
   serverSeedHash: text("server_seed_hash").notNull(),
   clientSeed: text("client_seed"),
-  nonce: integer("nonce").notNull().default(0),
+  nonce: bigint("nonce", { mode: "number" }).notNull().default(0),
   result: text("result"), // JSON string of game result
   multiplier: decimal("multiplier", { precision: 10, scale: 4 }),
   status: casinoRoundStatusEnum("status").notNull().default('PENDING'),
