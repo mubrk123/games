@@ -18,7 +18,9 @@ ProBetX is a full-stack, mobile-first sports betting exchange platform inspired 
 | **Back/Lay Betting** | Traditional exchange-style betting on match outcomes | `server/routes.ts`, `client/src/components/betting/` |
 | **Live Cricket** | Real matches from CricketData.org API with live scores | `server/cricketApi.ts` |
 | **Real-time Updates** | 5-second polling for live match scores | `client/src/pages/match-detail.tsx` |
-| **Instance Betting** | Next Ball, Next Over, Session markets with auto-close | `server/instanceBetting.ts` |
+| **Instance Betting** | Next Ball, Next Over, Session markets with 30s expiry | `server/instanceBetting.ts` |
+| **Auto-Settlement** | Background service settles bets when matches finish | `server/settlementService.ts` |
+| **Anti-Exploitation** | 10-second latency guard, 30s market windows, critical moment suspension | `server/routes.ts`, `server/instanceBetting.ts` |
 | **Mobile-First UI** | Bottom nav, touch-friendly components, responsive design | `client/src/components/layout/` |
 | **Admin Dashboard** | User management, risk monitoring, wallet adjustments | `client/src/pages/admin.tsx` |
 | **Sports Odds API** | Multi-sport odds integration via The Odds API | `server/routes.ts` |
@@ -27,7 +29,7 @@ ProBetX is a full-stack, mobile-first sports betting exchange platform inspired 
 
 | Feature | Current State | Needed |
 |---------|---------------|--------|
-| Instance Betting | In-memory storage, 60s expiry | Persist to DB, auto-settlement |
+| Instance Betting | In-memory storage, 30s expiry, auto-settlement added | Persist to DB |
 | Quick Bet Flow | Navigates to detail page | Direct bet placement from cards |
 | Multi-Sport | API integrated | Show non-cricket sports properly |
 | Casino | Page exists | Real games not implemented |
