@@ -7,15 +7,19 @@ import bcrypt from "bcrypt";
 
 // Session configuration
 export function setupAuth(app: Express) {
+  // Trust proxy for secure cookies behind reverse proxy
+  app.set("trust proxy", 1);
+  
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "probet-secret-key-change-in-production",
-      resave: false,
+      resave: true,
       saveUninitialized: false,
       cookie: {
         maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: false, // Allow cookies over HTTP in development
+        sameSite: "lax", // Required for cross-origin requests
       },
     })
   );

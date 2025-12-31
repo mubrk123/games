@@ -33,9 +33,17 @@ export async function registerRoutes(
           return res.status(500).json({ error: "Login failed" });
         }
         
-        // Don't send password to client
-        const { password, ...userWithoutPassword } = user;
-        return res.json({ user: userWithoutPassword });
+        // Save session explicitly before responding
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error("Session save error:", saveErr);
+            return res.status(500).json({ error: "Session save failed" });
+          }
+          
+          // Don't send password to client
+          const { password, ...userWithoutPassword } = user;
+          return res.json({ user: userWithoutPassword });
+        });
       });
     })(req, res, next);
   });
