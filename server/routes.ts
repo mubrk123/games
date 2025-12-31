@@ -6,6 +6,7 @@ import passport from "passport";
 import bcrypt from "bcrypt";
 import { insertUserSchema, insertBetSchema } from "@shared/schema";
 import { oddsApiService, POPULAR_SPORTS } from "./oddsApi";
+import { cricketApiService } from "./cricketApi";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -325,6 +326,63 @@ export async function registerRoutes(
       res.json({ scores });
     } catch (error: any) {
       console.error(`Failed to fetch scores for ${req.params.sportKey}:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // Cricket API Routes (CricketData.org)
+  // ============================================
+
+  // Get all current cricket matches (live)
+  app.get("/api/cricket/current", async (req, res) => {
+    try {
+      const matches = await cricketApiService.getCurrentMatches();
+      const formattedMatches = matches.map(m => cricketApiService.convertToMatch(m));
+      res.json({ matches: formattedMatches });
+    } catch (error: any) {
+      console.error('Failed to fetch current cricket matches:', error);
+      res.status(500).json({ error: error.message, matches: [] });
+    }
+  });
+
+  // Get all cricket matches (including upcoming)
+  app.get("/api/cricket/matches", async (req, res) => {
+    try {
+      const offset = parseInt(req.query.offset as string) || 0;
+      const matches = await cricketApiService.getAllMatches(offset);
+      const formattedMatches = matches.map(m => cricketApiService.convertToMatch(m));
+      res.json({ matches: formattedMatches });
+    } catch (error: any) {
+      console.error('Failed to fetch cricket matches:', error);
+      res.status(500).json({ error: error.message, matches: [] });
+    }
+  });
+
+  // Get cricket series list
+  app.get("/api/cricket/series", async (req, res) => {
+    try {
+      const search = req.query.search as string;
+      const series = search 
+        ? await cricketApiService.searchSeries(search)
+        : await cricketApiService.getSeries();
+      res.json({ series });
+    } catch (error: any) {
+      console.error('Failed to fetch cricket series:', error);
+      res.status(500).json({ error: error.message, series: [] });
+    }
+  });
+
+  // Get cricket match details
+  app.get("/api/cricket/match/:matchId", async (req, res) => {
+    try {
+      const { matchId } = req.params;
+      // Remove 'cricket-' prefix if present
+      const cleanId = matchId.replace('cricket-', '');
+      const matchInfo = await cricketApiService.getMatchInfo(cleanId);
+      res.json({ match: matchInfo });
+    } catch (error: any) {
+      console.error('Failed to fetch cricket match info:', error);
       res.status(500).json({ error: error.message });
     }
   });

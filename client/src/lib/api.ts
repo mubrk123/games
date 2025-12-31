@@ -178,6 +178,27 @@ class ApiClient {
   }
 
   // ============================================
+  // Cricket (CricketData.org API)
+  // ============================================
+  
+  async getCurrentCricketMatches(): Promise<{ matches: ApiMatch[] }> {
+    return this.request('/cricket/current');
+  }
+
+  async getAllCricketMatches(offset: number = 0): Promise<{ matches: ApiMatch[] }> {
+    return this.request(`/cricket/matches?offset=${offset}`);
+  }
+
+  async getCricketSeries(search?: string): Promise<{ series: any[] }> {
+    const params = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.request(`/cricket/series${params}`);
+  }
+
+  async getCricketMatchInfo(matchId: string): Promise<{ match: any }> {
+    return this.request(`/cricket/match/${matchId}`);
+  }
+
+  // ============================================
   // Betting
   // ============================================
   

@@ -35,16 +35,40 @@ export default function Dashboard() {
     staleTime: 60000, // Cache for 1 minute
   });
 
+  // Fetch cricket matches separately (comprehensive cricket API)
+  const { data: cricketData } = useQuery({
+    queryKey: ['cricket-matches'],
+    queryFn: async () => {
+      try {
+        const result = await api.getAllCricketMatches();
+        return result.matches || [];
+      } catch (error) {
+        console.error('Cricket API not configured:', error);
+        return [];
+      }
+    },
+    staleTime: 60000,
+    retry: 1,
+  });
+
   // Fetch live events based on selected sport (public - no auth required)
   const { data: matchesData, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['live-matches', selectedSport],
     queryFn: async () => {
-      if (selectedSport === 'all') {
-        const result = await api.getAllLiveEvents();
-        return result.matches;
+      // For cricket, use the dedicated cricket API
+      if (selectedSport === 'cricket' || selectedSport === 'cricket_all') {
+        const result = await api.getAllCricketMatches();
+        return result.matches || [];
+      } else if (selectedSport === 'all') {
+        // Combine general sports with cricket
+        const [sportsResult, cricketResult] = await Promise.all([
+          api.getAllLiveEvents(),
+          api.getAllCricketMatches().catch(() => ({ matches: [] }))
+        ]);
+        return [...(sportsResult.matches || []), ...(cricketResult.matches || [])];
       } else {
         const result = await api.getLiveOdds(selectedSport);
-        return result.matches;
+        return result.matches || [];
       }
     },
     refetchInterval: 30000, // Refetch every 30 seconds for live updates
@@ -102,6 +126,7 @@ export default function Dashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sports</SelectItem>
+                  <SelectItem value="cricket_all">All Cricket (IPL, Test, T20, ODI)</SelectItem>
                   <SelectItem value="cricket_big_bash">Cricket - Big Bash</SelectItem>
                   <SelectItem value="soccer_epl">Premier League</SelectItem>
                   <SelectItem value="soccer_spain_la_liga">La Liga</SelectItem>
@@ -138,8 +163,8 @@ export default function Dashboard() {
             </Badge>
             <Badge 
               variant="outline" 
-              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'cricket_big_bash' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
-              onClick={() => setSelectedSport('cricket_big_bash')}
+              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'cricket_all' || selectedSport === 'cricket' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              onClick={() => setSelectedSport('cricket_all')}
             >
               Cricket
             </Badge>
