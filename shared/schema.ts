@@ -109,6 +109,8 @@ export const insertRunnerSchema = createInsertSchema(runners).omit({
 
 export const insertBetSchema = createInsertSchema(bets).omit({
   id: true,
+  userId: true,
+  potentialProfit: true,
   createdAt: true,
   settledAt: true,
 });
