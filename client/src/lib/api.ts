@@ -206,6 +206,7 @@ class ApiClient {
     matchId: string;
     marketId: string;
     runnerId: string;
+    runnerName?: string;
     type: 'BACK' | 'LAY';
     odds: string;
     stake: string;

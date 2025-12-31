@@ -68,6 +68,7 @@ export function MobileBetSlip({ selectedBet, onClear }: MobileBetSlipProps) {
         matchId: selectedBet.match.id,
         marketId: selectedBet.match.markets[0].id,
         runnerId: selectedBet.runner.id,
+        runnerName: selectedBet.runner.name,
         type: selectedBet.type,
         odds: selectedBet.odds.toString(),
         stake: stake,

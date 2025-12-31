@@ -79,7 +79,7 @@ class InstanceBettingService {
 
   createCricketBallMarket(matchId: string, overNumber: number, ballNumber: number): InstanceMarket {
     const now = new Date();
-    const closeTime = new Date(now.getTime() + 60000);
+    const closeTime = new Date(now.getTime() + 30000); // 30 seconds to prevent exploitation
 
     const market: InstanceMarket = {
       id: this.generateMarketId(),
@@ -107,7 +107,7 @@ class InstanceBettingService {
 
   createCricketOverMarket(matchId: string, overNumber: number): InstanceMarket {
     const now = new Date();
-    const closeTime = new Date(now.getTime() + 60000);
+    const closeTime = new Date(now.getTime() + 30000); // 30 seconds to prevent exploitation
 
     const market: InstanceMarket = {
       id: this.generateMarketId(),
@@ -135,7 +135,7 @@ class InstanceBettingService {
 
   createFootballNextGoalMarket(matchId: string, homeTeam: string, awayTeam: string): InstanceMarket {
     const now = new Date();
-    const closeTime = new Date(now.getTime() + 60000);
+    const closeTime = new Date(now.getTime() + 30000); // 30 seconds to prevent exploitation
 
     const outcomes = [
       { name: homeTeam, baseOdds: 2.20 },
@@ -250,6 +250,61 @@ class InstanceBettingService {
     if (market) {
       market.status = 'SUSPENDED';
     }
+  }
+
+  suspendAllMarketsForMatch(matchId: string, reason: string): number {
+    let suspended = 0;
+    this.activeMarkets.forEach(market => {
+      if (market.matchId === matchId && market.status === 'OPEN') {
+        market.status = 'SUSPENDED';
+        suspended++;
+        console.log(`Market ${market.id} suspended: ${reason}`);
+      }
+    });
+    return suspended;
+  }
+
+  resumeAllMarketsForMatch(matchId: string): number {
+    let resumed = 0;
+    this.activeMarkets.forEach(market => {
+      if (market.matchId === matchId && market.status === 'SUSPENDED') {
+        const now = new Date();
+        if (market.closeTime > now) {
+          market.status = 'OPEN';
+          resumed++;
+        }
+      }
+    });
+    return resumed;
+  }
+
+  checkCriticalMoments(
+    matchId: string,
+    currentOver: number,
+    currentBall: number,
+    wicketsInOver: number,
+    totalOvers: number,
+    lastBallResult?: string
+  ): { isCritical: boolean; reason: string | null } {
+    const isLastOver = currentOver >= totalOvers - 1;
+    const isLastTwoBalls = currentBall >= 5;
+    const isWicketJustFallen = wicketsInOver > 0 || lastBallResult?.toLowerCase().includes('wicket');
+    const isPowerplayEnd = currentOver === 5 && currentBall === 6;
+    const isDeathOvers = currentOver >= totalOvers - 5;
+
+    if (isWicketJustFallen) {
+      return { isCritical: true, reason: 'Wicket just fallen - markets suspended' };
+    }
+    
+    if (isLastOver && isLastTwoBalls) {
+      return { isCritical: true, reason: 'Critical last balls - markets suspended' };
+    }
+
+    if (isPowerplayEnd) {
+      return { isCritical: true, reason: 'Powerplay ending - markets suspended' };
+    }
+
+    return { isCritical: false, reason: null };
   }
 
   private applyOddsVariation(baseOdds: number): number {

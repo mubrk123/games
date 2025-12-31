@@ -65,6 +65,7 @@ export const bets = pgTable("bets", {
   matchId: varchar("match_id").notNull(), // No FK - allows API-sourced matches
   marketId: varchar("market_id").notNull(), // No FK - allows API-sourced markets
   runnerId: varchar("runner_id").notNull(), // No FK - allows API-sourced runners
+  runnerName: text("runner_name"), // Store team/selection name for settlement
   type: betTypeEnum("type").notNull(),
   odds: decimal("odds", { precision: 10, scale: 2 }).notNull(),
   stake: decimal("stake", { precision: 10, scale: 2 }).notNull(),

@@ -47,7 +47,7 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
 
   // Place bet mutation
   const placeBetMutation = useMutation({
-    mutationFn: async (data: { matchId: string, marketId: string, runnerId: string, type: 'BACK' | 'LAY', odds: string, stake: string }) => {
+    mutationFn: async (data: { matchId: string, marketId: string, runnerId: string, runnerName?: string, type: 'BACK' | 'LAY', odds: string, stake: string }) => {
       return await api.placeBet(data);
     },
     onSuccess: async () => {
@@ -118,6 +118,7 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
       matchId: selectedBet.match.id,
       marketId: selectedBet.match.markets[0].id,
       runnerId: selectedBet.runner.id,
+      runnerName: selectedBet.runner.name,
       type: selectedBet.type,
       odds: selectedBet.odds.toString(),
       stake: stakeAmount.toString()

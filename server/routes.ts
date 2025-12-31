@@ -440,10 +440,11 @@ export async function registerRoutes(
         potentialProfit = stake;
       }
 
-      // Create the bet
+      // Create the bet with runnerName for settlement
       const bet = await storage.createBet({
         ...parsed,
         userId,
+        runnerName: req.body.runnerName || null,
         potentialProfit: String(potentialProfit),
       });
 
@@ -577,6 +578,18 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Market is closed or does not exist" });
       }
 
+      // Latency guard: Reject bets on markets closing within 10 seconds
+      const now = new Date();
+      const closeTime = new Date(market.closeTime);
+      const secondsRemaining = (closeTime.getTime() - now.getTime()) / 1000;
+      
+      if (secondsRemaining < 10) {
+        return res.status(400).json({ 
+          error: "Market closing soon - bet rejected to prevent exploitation",
+          secondsRemaining: Math.max(0, Math.floor(secondsRemaining))
+        });
+      }
+
       const outcome = market.outcomes.find(o => o.id === outcomeId);
       if (!outcome) {
         return res.status(400).json({ error: "Outcome not found" });
@@ -589,6 +602,7 @@ export async function registerRoutes(
         matchId: market.matchId,
         marketId: market.id,
         runnerId: outcome.id,
+        runnerName: outcome.name, // Store outcome name for settlement
         type: 'BACK',
         odds: outcome.odds.toString(),
         stake: stake,
@@ -630,15 +644,41 @@ export async function registerRoutes(
         let currentOver: number | null = null;
         let currentBall: number | null = null;
 
+        let wicketsInOver = 0;
+        let totalOvers = 20; // Default for T20
+        
         if (matchInfo.score && matchInfo.score.length > 0) {
           const latestInning = matchInfo.score[matchInfo.score.length - 1];
           scoreHome = `${latestInning.r}/${latestInning.w}`;
           currentOver = Math.floor(latestInning.o);
           currentBall = Math.round((latestInning.o - currentOver) * 10);
           scoreDetails = matchInfo.status;
+          wicketsInOver = 0; // Would need ball-by-ball data to track accurately
         }
 
         instanceBettingService.clearExpiredMarketsForMatch(matchId);
+
+        // Check for critical moments and suspend/resume markets
+        let marketsSuspended = false;
+        let suspensionReason: string | null = null;
+        
+        if (currentOver !== null && currentBall !== null) {
+          const criticalCheck = instanceBettingService.checkCriticalMoments(
+            matchId,
+            currentOver,
+            currentBall,
+            wicketsInOver,
+            totalOvers
+          );
+          
+          if (criticalCheck.isCritical) {
+            instanceBettingService.suspendAllMarketsForMatch(matchId, criticalCheck.reason || 'Critical moment');
+            marketsSuspended = true;
+            suspensionReason = criticalCheck.reason;
+          } else {
+            instanceBettingService.resumeAllMarketsForMatch(matchId);
+          }
+        }
 
         res.json({
           matchId,
@@ -648,6 +688,8 @@ export async function registerRoutes(
           currentOver,
           currentBall,
           status: matchInfo.matchEnded ? 'FINISHED' : matchInfo.matchStarted ? 'LIVE' : 'UPCOMING',
+          marketsSuspended,
+          suspensionReason,
           timestamp: new Date().toISOString(),
         });
       } else {
