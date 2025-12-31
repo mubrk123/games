@@ -107,10 +107,18 @@ export const insertRunnerSchema = createInsertSchema(runners).omit({
   createdAt: true,
 });
 
+// Schema for API request body validation (excludes server-computed fields)
 export const insertBetSchema = createInsertSchema(bets).omit({
   id: true,
   userId: true,
   potentialProfit: true,
+  createdAt: true,
+  settledAt: true,
+});
+
+// Schema for creating bet in storage (includes all required fields)
+export const createBetSchema = createInsertSchema(bets).omit({
+  id: true,
   createdAt: true,
   settledAt: true,
 });
@@ -134,6 +142,7 @@ export type InsertRunner = z.infer<typeof insertRunnerSchema>;
 export type Runner = typeof runners.$inferSelect;
 
 export type InsertBet = z.infer<typeof insertBetSchema>;
+export type CreateBet = z.infer<typeof createBetSchema>;
 export type Bet = typeof bets.$inferSelect;
 
 export type InsertWalletTransaction = z.infer<typeof insertWalletTransactionSchema>;

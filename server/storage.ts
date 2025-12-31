@@ -13,7 +13,7 @@ import type {
   Runner,
   InsertRunner,
   Bet,
-  InsertBet,
+  CreateBet,
   InsertWalletTransaction,
   WalletTransaction
 } from "@shared/schema";
@@ -52,7 +52,7 @@ export interface IStorage {
   updateRunnerOdds(runnerId: string, backOdds: number, layOdds: number): Promise<Runner | undefined>;
   
   // Bet Operations
-  createBet(bet: InsertBet): Promise<Bet>;
+  createBet(bet: CreateBet): Promise<Bet>;
   getUserBets(userId: string): Promise<Bet[]>;
   getAllBets(): Promise<Bet[]>;
   getBetsByMatch(matchId: string): Promise<Bet[]>;
@@ -148,7 +148,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Bet Operations
-  async createBet(bet: InsertBet): Promise<Bet> {
+  async createBet(bet: CreateBet): Promise<Bet> {
     const result = await db.insert(schema.bets).values(bet).returning();
     return result[0];
   }
