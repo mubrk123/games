@@ -10,6 +10,10 @@ import Casino from "@/pages/casino";
 import SlotsGame from "@/pages/casino/slots";
 import CrashGame from "@/pages/casino/crash";
 import DiceGame from "@/pages/casino/dice";
+import AndarBaharGame from "@/pages/casino/andar-bahar";
+import TeenPattiGame from "@/pages/casino/teen-patti";
+import Lucky7Game from "@/pages/casino/lucky-7";
+import RouletteGame from "@/pages/casino/roulette";
 import AdminPanel from "@/pages/admin";
 import Login from "@/pages/auth/login";
 import MyBets from "@/pages/my-bets";
@@ -103,6 +107,18 @@ function Router() {
       </Route>
       <Route path="/casino/dice">
         <ProtectedRoute component={DiceGame} />
+      </Route>
+      <Route path="/casino/andar-bahar">
+        <ProtectedRoute component={AndarBaharGame} />
+      </Route>
+      <Route path="/casino/teen-patti">
+        <ProtectedRoute component={TeenPattiGame} />
+      </Route>
+      <Route path="/casino/lucky-7">
+        <ProtectedRoute component={Lucky7Game} />
+      </Route>
+      <Route path="/casino/roulette">
+        <ProtectedRoute component={RouletteGame} />
       </Route>
       <Route path="/my-bets">
         <ProtectedRoute component={MyBets} />

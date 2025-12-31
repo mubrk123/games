@@ -288,6 +288,34 @@ class ApiClient {
     });
   }
 
+  async playAndarBahar(betAmount: number, choice: 'andar' | 'bahar', clientSeed?: string): Promise<AndarBaharResult> {
+    return this.request('/casino/andar-bahar/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, choice, clientSeed }),
+    });
+  }
+
+  async playTeenPatti(betAmount: number, clientSeed?: string): Promise<TeenPattiResult> {
+    return this.request('/casino/teen-patti/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, clientSeed }),
+    });
+  }
+
+  async playLucky7(betAmount: number, bet: 'low' | 'seven' | 'high', clientSeed?: string): Promise<Lucky7Result> {
+    return this.request('/casino/lucky-7/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, bet, clientSeed }),
+    });
+  }
+
+  async playRoulette(betAmount: number, betType: string, betValue: string, clientSeed?: string): Promise<RouletteResult> {
+    return this.request('/casino/roulette/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, betType, betValue, clientSeed }),
+    });
+  }
+
   async verifyFairness(roundId: string): Promise<FairnessVerification> {
     return this.request(`/casino/verify/${roundId}`);
   }
@@ -329,7 +357,7 @@ export interface CasinoGame {
   id: string;
   name: string;
   slug: string;
-  type: 'slots' | 'crash' | 'dice' | 'roulette' | 'blackjack';
+  type: 'slots' | 'crash' | 'dice' | 'roulette' | 'blackjack' | 'andar_bahar' | 'teen_patti' | 'lucky_7';
   description: string | null;
   minBet: string;
   maxBet: string;
@@ -388,6 +416,78 @@ export interface DiceResult {
   target: number;
   isWin: boolean;
   multiplier: number;
+  betAmount: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export interface AndarBaharResult {
+  roundId: string;
+  jokerCard: string;
+  andarCards: string[];
+  baharCards: string[];
+  winningSide: 'andar' | 'bahar';
+  cardCount: number;
+  choice: 'andar' | 'bahar';
+  isWin: boolean;
+  multiplier: number;
+  betAmount: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export interface TeenPattiResult {
+  roundId: string;
+  playerCards: string[];
+  dealerCards: string[];
+  playerHandRank: string;
+  dealerHandRank: string;
+  winner: 'player' | 'dealer' | 'tie';
+  multiplier: number;
+  isWin: boolean;
+  isTie: boolean;
+  betAmount: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export interface Lucky7Result {
+  roundId: string;
+  card: string;
+  cardValue: number;
+  outcome: 'low' | 'seven' | 'high';
+  bet: 'low' | 'seven' | 'high';
+  multiplier: number;
+  isWin: boolean;
+  betAmount: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export interface RouletteResult {
+  roundId: string;
+  number: number;
+  color: 'red' | 'black' | 'green';
+  betType: string;
+  betValue: string;
+  multiplier: number;
+  isWin: boolean;
   betAmount: number;
   payout: number;
   profit: number;

@@ -206,8 +206,44 @@ async function seed() {
           maxBet: "10000",
           houseEdge: "0.03",
         },
+        {
+          name: "Andar Bahar",
+          slug: "andar-bahar",
+          type: "andar_bahar",
+          description: "Classic Indian card game. Bet on which side the matching card appears!",
+          minBet: "10",
+          maxBet: "10000",
+          houseEdge: "0.05",
+        },
+        {
+          name: "Teen Patti",
+          slug: "teen-patti",
+          type: "teen_patti",
+          description: "Indian 3-card poker. Beat the dealer with the best hand!",
+          minBet: "10",
+          maxBet: "10000",
+          houseEdge: "0.03",
+        },
+        {
+          name: "Lucky 7",
+          slug: "lucky-7",
+          type: "lucky_7",
+          description: "Predict if the card will be lower than 7, exactly 7, or higher!",
+          minBet: "10",
+          maxBet: "10000",
+          houseEdge: "0.03",
+        },
+        {
+          name: "Roulette",
+          slug: "roulette",
+          type: "roulette",
+          description: "Classic European roulette. Bet on numbers, colors, or ranges!",
+          minBet: "10",
+          maxBet: "10000",
+          houseEdge: "0.027",
+        },
       ]);
-      console.log("✅ Created casino games: Slots, Crash, Dice");
+      console.log("✅ Created casino games: Slots, Crash, Dice, Andar Bahar, Teen Patti, Lucky 7, Roulette");
     } else {
       console.log(`ℹ️  ${existingCasinoGames.length} casino games already exist`);
     }

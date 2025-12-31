@@ -10,7 +10,7 @@ export const betStatusEnum = pgEnum('bet_status', ['OPEN', 'WON', 'LOST', 'VOID'
 export const matchStatusEnum = pgEnum('match_status', ['LIVE', 'UPCOMING', 'FINISHED']);
 export const marketStatusEnum = pgEnum('market_status', ['OPEN', 'SUSPENDED', 'CLOSED']);
 export const sportEnum = pgEnum('sport', ['cricket', 'football', 'tennis', 'basketball']);
-export const casinoGameTypeEnum = pgEnum('casino_game_type', ['slots', 'crash', 'dice', 'roulette', 'blackjack']);
+export const casinoGameTypeEnum = pgEnum('casino_game_type', ['slots', 'crash', 'dice', 'roulette', 'blackjack', 'andar_bahar', 'teen_patti', 'lucky_7']);
 export const casinoRoundStatusEnum = pgEnum('casino_round_status', ['PENDING', 'ACTIVE', 'COMPLETED']);
 
 // Session Table (managed by connect-pg-simple, defined here to prevent Drizzle from deleting it)

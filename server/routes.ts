@@ -792,6 +792,86 @@ export async function registerRoutes(
       res.status(400).json({ error: error.message });
     }
   });
+
+  // Play Andar Bahar
+  app.post("/api/casino/andar-bahar/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, choice, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!choice || !['andar', 'bahar'].includes(choice)) {
+        return res.status(400).json({ error: "Choice must be 'andar' or 'bahar'" });
+      }
+      
+      const result = await casinoService.playAndarBahar(user.id, betAmount, choice, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Play Teen Patti
+  app.post("/api/casino/teen-patti/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      const result = await casinoService.playTeenPatti(user.id, betAmount, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Play Lucky 7
+  app.post("/api/casino/lucky-7/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, bet, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!bet || !['low', 'seven', 'high'].includes(bet)) {
+        return res.status(400).json({ error: "Bet must be 'low', 'seven', or 'high'" });
+      }
+      
+      const result = await casinoService.playLucky7(user.id, betAmount, bet, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Play Roulette
+  app.post("/api/casino/roulette/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, betType, betValue, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!betType || !betValue) {
+        return res.status(400).json({ error: "Bet type and value are required" });
+      }
+      
+      const result = await casinoService.playRoulette(user.id, betAmount, betType, betValue, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
   
   // Verify fairness
   app.get("/api/casino/verify/:roundId", async (req, res) => {

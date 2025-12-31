@@ -14,6 +14,9 @@ const GAME_ICONS: Record<string, React.ReactNode> = {
   dice: <Dices className="w-8 h-8" />,
   roulette: <div className="w-8 h-8 text-2xl">🎰</div>,
   blackjack: <div className="w-8 h-8 text-2xl">🃏</div>,
+  andar_bahar: <div className="w-8 h-8 text-2xl">🃏</div>,
+  teen_patti: <div className="w-8 h-8 text-2xl">🎴</div>,
+  lucky_7: <div className="w-8 h-8 text-2xl">7️⃣</div>,
 };
 
 const GAME_GRADIENTS: Record<string, string> = {
@@ -22,6 +25,9 @@ const GAME_GRADIENTS: Record<string, string> = {
   dice: "from-blue-500 to-cyan-500",
   roulette: "from-green-600 to-emerald-500",
   blackjack: "from-gray-700 to-gray-900",
+  andar_bahar: "from-amber-500 to-orange-600",
+  teen_patti: "from-rose-500 to-pink-600",
+  lucky_7: "from-yellow-500 to-amber-600",
 };
 
 export default function Casino() {
@@ -86,7 +92,7 @@ export default function Casino() {
         <div className="mt-6">
           <h2 className="text-xl font-heading font-bold mb-4">Coming Soon</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 opacity-50">
-            {['Roulette', 'Blackjack', 'Baccarat', 'Poker'].map((name) => (
+            {['Blackjack', 'Baccarat', 'Poker', 'Hi-Lo'].map((name) => (
               <Card key={name} className="p-4 text-center">
                 <div className="text-3xl mb-2">🔒</div>
                 <p className="text-sm font-medium">{name}</p>
