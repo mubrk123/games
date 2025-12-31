@@ -128,7 +128,7 @@ class OddsApiService {
     const marketId = `${event.id}-market`;
 
     // Build runners from outcomes - convert odds to strings to match database schema
-    const runners = h2hMarket?.outcomes.map((outcome, idx) => ({
+    const runners = h2hMarket?.outcomes?.map((outcome, idx) => ({
       id: `${event.id}-runner-${idx}`,
       marketId: marketId,
       name: outcome.name,

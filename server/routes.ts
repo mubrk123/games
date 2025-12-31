@@ -270,8 +270,10 @@ export async function registerRoutes(
       const { sportKey } = req.params;
       const events = await oddsApiService.getOdds(sportKey);
       
-      // Convert to our match format
-      const matches = events.map(event => oddsApiService.convertToMatch(event));
+      // Convert to our match format, filter out events without bookmakers
+      const matches = events
+        .filter(event => event.bookmakers && event.bookmakers.length > 0)
+        .map(event => oddsApiService.convertToMatch(event));
       
       res.json({ matches });
     } catch (error: any) {
@@ -292,7 +294,9 @@ export async function registerRoutes(
         sportsToFetch.map(async (sportKey) => {
           try {
             const events = await oddsApiService.getOdds(sportKey);
-            return events.map(event => oddsApiService.convertToMatch(event));
+            return events
+              .filter(event => event.bookmakers && event.bookmakers.length > 0)
+              .map(event => oddsApiService.convertToMatch(event));
           } catch (e) {
             return [];
           }
