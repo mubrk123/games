@@ -4,16 +4,29 @@ import { storage } from "./storage";
 import type { Express } from "express";
 import session from "express-session";
 import bcrypt from "bcrypt";
+import connectPgSimple from "connect-pg-simple";
+import pg from "pg";
 
 // Session configuration
 export function setupAuth(app: Express) {
   // Trust proxy for secure cookies behind reverse proxy
   app.set("trust proxy", 1);
   
+  // Create PostgreSQL session store
+  const PgStore = connectPgSimple(session);
+  const pool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+  });
+  
   app.use(
     session({
+      store: new PgStore({
+        pool,
+        tableName: 'session',
+        createTableIfMissing: true,
+      }),
       secret: process.env.SESSION_SECRET || "probet-secret-key-change-in-production",
-      resave: true,
+      resave: false,
       saveUninitialized: false,
       cookie: {
         maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week

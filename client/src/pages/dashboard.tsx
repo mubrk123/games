@@ -25,20 +25,19 @@ export default function Dashboard() {
   } | null>(null);
   const isMobile = useIsMobile();
 
-  // Fetch available sports (only when user is authenticated)
+  // Fetch available sports (public - no auth required)
   const { data: sportsData } = useQuery({
-    queryKey: ['live-sports', currentUser?.id],
+    queryKey: ['live-sports'],
     queryFn: async () => {
       const result = await api.getLiveSports();
       return result.sports;
     },
     staleTime: 60000, // Cache for 1 minute
-    enabled: !!currentUser, // Only fetch when logged in
   });
 
-  // Fetch live events based on selected sport (only when user is authenticated)
+  // Fetch live events based on selected sport (public - no auth required)
   const { data: matchesData, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['live-matches', selectedSport, currentUser?.id],
+    queryKey: ['live-matches', selectedSport],
     queryFn: async () => {
       if (selectedSport === 'all') {
         const result = await api.getAllLiveEvents();
@@ -49,7 +48,6 @@ export default function Dashboard() {
       }
     },
     refetchInterval: 30000, // Refetch every 30 seconds for live updates
-    enabled: !!currentUser, // Only fetch when logged in
     retry: 2,
   });
 

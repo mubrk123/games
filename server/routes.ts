@@ -249,8 +249,8 @@ export async function registerRoutes(
   // Live Odds Routes (The Odds API)
   // ============================================
   
-  // Get available sports
-  app.get("/api/live/sports", requireAuth, async (req, res) => {
+  // Get available sports (public endpoint - no auth required)
+  app.get("/api/live/sports", async (req, res) => {
     try {
       const sports = await oddsApiService.getSports();
       // Filter to only active sports
@@ -262,8 +262,8 @@ export async function registerRoutes(
     }
   });
 
-  // Get live events with odds for a specific sport
-  app.get("/api/live/odds/:sportKey", requireAuth, async (req, res) => {
+  // Get live events with odds for a specific sport (public endpoint)
+  app.get("/api/live/odds/:sportKey", async (req, res) => {
     try {
       const { sportKey } = req.params;
       const events = await oddsApiService.getOdds(sportKey);
@@ -278,8 +278,8 @@ export async function registerRoutes(
     }
   });
 
-  // Get all live events across popular sports
-  app.get("/api/live/all", requireAuth, async (req, res) => {
+  // Get all live events across popular sports (public endpoint)
+  app.get("/api/live/all", async (req, res) => {
     try {
       const allMatches: any[] = [];
       
