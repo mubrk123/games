@@ -1,5 +1,5 @@
 import { storage, db } from "./storage";
-import { casinoGames } from "@shared/schema";
+import { casinoGames, InsertCasinoGame } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
@@ -178,11 +178,11 @@ async function seed() {
     const existingCasinoGames = await db.select().from(casinoGames);
     const existingSlugs = new Set(existingCasinoGames.map(g => g.slug));
     
-    const allGames = [
+    const allGames: InsertCasinoGame[] = [
       {
         name: "Classic Slots",
         slug: "classic-slots",
-        type: "slots" as const,
+        type: "slots",
         description: "Spin the reels and match symbols to win big!",
         minBet: "10",
         maxBet: "10000",
@@ -191,7 +191,7 @@ async function seed() {
       {
         name: "Crash",
         slug: "crash",
-        type: "crash" as const,
+        type: "crash",
         description: "Cash out before the multiplier crashes!",
         minBet: "10",
         maxBet: "10000",
@@ -200,7 +200,7 @@ async function seed() {
       {
         name: "Dice",
         slug: "dice",
-        type: "dice" as const,
+        type: "dice",
         description: "Predict if the roll will be higher or lower than your target.",
         minBet: "10",
         maxBet: "10000",
@@ -209,7 +209,7 @@ async function seed() {
       {
         name: "Andar Bahar",
         slug: "andar-bahar",
-        type: "andar_bahar" as const,
+        type: "andar_bahar",
         description: "Classic Indian card game. Bet on which side the matching card appears!",
         minBet: "10",
         maxBet: "10000",
@@ -218,7 +218,7 @@ async function seed() {
       {
         name: "Teen Patti",
         slug: "teen-patti",
-        type: "teen_patti" as const,
+        type: "teen_patti",
         description: "Indian 3-card poker. Beat the dealer with the best hand!",
         minBet: "10",
         maxBet: "10000",
@@ -227,7 +227,7 @@ async function seed() {
       {
         name: "Lucky 7",
         slug: "lucky-7",
-        type: "lucky_7" as const,
+        type: "lucky_7",
         description: "Predict if the card will be lower than 7, exactly 7, or higher!",
         minBet: "10",
         maxBet: "10000",
@@ -236,7 +236,7 @@ async function seed() {
       {
         name: "Roulette",
         slug: "roulette",
-        type: "roulette" as const,
+        type: "roulette",
         description: "Classic European roulette. Bet on numbers, colors, or ranges!",
         minBet: "10",
         maxBet: "10000",
