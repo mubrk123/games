@@ -247,7 +247,9 @@ async function seed() {
     const missingGames = allGames.filter(g => !existingSlugs.has(g.slug));
     
     if (missingGames.length > 0) {
-      await db.insert(casinoGames).values(missingGames);
+      for (const game of missingGames) {
+        await db.insert(casinoGames).values(game);
+      }
       console.log(`✅ Added ${missingGames.length} new casino games: ${missingGames.map(g => g.name).join(', ')}`);
     } else {
       console.log(`ℹ️  All ${existingCasinoGames.length} casino games already exist`);
