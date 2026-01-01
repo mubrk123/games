@@ -1,9 +1,7 @@
 import { storage, db } from "./storage";
-import { casinoGames, casinoGameTypeEnum, InsertCasinoGame } from "@shared/schema";
+import { casinoGames } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
-
-const gameTypes = casinoGameTypeEnum.enumValues;
 
 async function seed() {
   console.log("🌱 Starting database seeding...");
@@ -180,11 +178,11 @@ async function seed() {
     const existingCasinoGames = await db.select().from(casinoGames);
     const existingSlugs = new Set(existingCasinoGames.map(g => g.slug));
     
-    const allGames: InsertCasinoGame[] = [
+    const allGames = [
       {
         name: "Classic Slots",
         slug: "classic-slots",
-        type: gameTypes[0], // slots
+        type: "slots" as const,
         description: "Spin the reels and match symbols to win big!",
         minBet: "10",
         maxBet: "10000",
@@ -193,7 +191,7 @@ async function seed() {
       {
         name: "Crash",
         slug: "crash",
-        type: gameTypes[1], // crash
+        type: "crash" as const,
         description: "Cash out before the multiplier crashes!",
         minBet: "10",
         maxBet: "10000",
@@ -202,7 +200,7 @@ async function seed() {
       {
         name: "Dice",
         slug: "dice",
-        type: gameTypes[2], // dice
+        type: "dice" as const,
         description: "Predict if the roll will be higher or lower than your target.",
         minBet: "10",
         maxBet: "10000",
@@ -211,7 +209,7 @@ async function seed() {
       {
         name: "Andar Bahar",
         slug: "andar-bahar",
-        type: gameTypes[5], // andar_bahar
+        type: "andar_bahar" as const,
         description: "Classic Indian card game. Bet on which side the matching card appears!",
         minBet: "10",
         maxBet: "10000",
@@ -220,7 +218,7 @@ async function seed() {
       {
         name: "Teen Patti",
         slug: "teen-patti",
-        type: gameTypes[6], // teen_patti
+        type: "teen_patti" as const,
         description: "Indian 3-card poker. Beat the dealer with the best hand!",
         minBet: "10",
         maxBet: "10000",
@@ -229,7 +227,7 @@ async function seed() {
       {
         name: "Lucky 7",
         slug: "lucky-7",
-        type: gameTypes[7], // lucky_7
+        type: "lucky_7" as const,
         description: "Predict if the card will be lower than 7, exactly 7, or higher!",
         minBet: "10",
         maxBet: "10000",
@@ -238,7 +236,7 @@ async function seed() {
       {
         name: "Roulette",
         slug: "roulette",
-        type: gameTypes[3], // roulette
+        type: "roulette" as const,
         description: "Classic European roulette. Bet on numbers, colors, or ranges!",
         minBet: "10",
         maxBet: "10000",
