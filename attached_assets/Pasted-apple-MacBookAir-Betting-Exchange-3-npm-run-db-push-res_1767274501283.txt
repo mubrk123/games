@@ -1,0 +1,61 @@
+apple@MacBookAir Betting-Exchange-3 % npm run db:push       
+
+> rest-express@1.0.0 db:push
+> drizzle-kit push
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/Users/apple/Desktop/Betting-Exchange-3/drizzle.config.ts'
+Using 'pg' driver for database querying
+[✓] Pulling schema from database...
+[i] No changes detected
+apple@MacBookAir Betting-Exchange-3 % npx tsx server/seed.ts
+[dotenv@17.2.3] injecting env (4) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+🌱 Starting database seeding...
+ℹ️  Admin user already exists
+ℹ️  Demo user already exists
+ℹ️  3 matches already exist in database
+❌ Error seeding database: error: invalid input value for enum casino_game_type: "andar_bahar"
+    at /Users/apple/Desktop/Betting-Exchange-3/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async seed (/Users/apple/Desktop/Betting-Exchange-3/server/seed.ts:251:9) {
+  length: 147,
+  severity: 'ERROR',
+  code: '22P02',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $3 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'enum.c',
+  line: '129',
+  routine: 'enum_in'
+}
+error: invalid input value for enum casino_game_type: "andar_bahar"
+    at /Users/apple/Desktop/Betting-Exchange-3/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async seed (/Users/apple/Desktop/Betting-Exchange-3/server/seed.ts:251:9) {
+  length: 147,
+  severity: 'ERROR',
+  code: '22P02',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $3 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'enum.c',
+  line: '129',
+  routine: 'enum_in'
+}
+apple@MacBookAir Betting-Exchange-3 %
