@@ -174,78 +174,83 @@ async function seed() {
       console.log(`ℹ️  ${existingMatches.length} matches already exist in database`);
     }
 
-    // Seed casino games
+    // Seed casino games - add missing ones
     const existingCasinoGames = await db.select().from(casinoGames);
+    const existingSlugs = new Set(existingCasinoGames.map(g => g.slug));
     
-    if (existingCasinoGames.length === 0) {
-      await db.insert(casinoGames).values([
-        {
-          name: "Classic Slots",
-          slug: "classic-slots",
-          type: "slots",
-          description: "Spin the reels and match symbols to win big!",
-          minBet: "10",
-          maxBet: "10000",
-          houseEdge: "0.03",
-        },
-        {
-          name: "Crash",
-          slug: "crash",
-          type: "crash",
-          description: "Cash out before the multiplier crashes!",
-          minBet: "10",
-          maxBet: "10000",
-          houseEdge: "0.03",
-        },
-        {
-          name: "Dice",
-          slug: "dice",
-          type: "dice",
-          description: "Predict if the roll will be higher or lower than your target.",
-          minBet: "10",
-          maxBet: "10000",
-          houseEdge: "0.03",
-        },
-        {
-          name: "Andar Bahar",
-          slug: "andar-bahar",
-          type: "andar_bahar",
-          description: "Classic Indian card game. Bet on which side the matching card appears!",
-          minBet: "10",
-          maxBet: "10000",
-          houseEdge: "0.05",
-        },
-        {
-          name: "Teen Patti",
-          slug: "teen-patti",
-          type: "teen_patti",
-          description: "Indian 3-card poker. Beat the dealer with the best hand!",
-          minBet: "10",
-          maxBet: "10000",
-          houseEdge: "0.03",
-        },
-        {
-          name: "Lucky 7",
-          slug: "lucky-7",
-          type: "lucky_7",
-          description: "Predict if the card will be lower than 7, exactly 7, or higher!",
-          minBet: "10",
-          maxBet: "10000",
-          houseEdge: "0.03",
-        },
-        {
-          name: "Roulette",
-          slug: "roulette",
-          type: "roulette",
-          description: "Classic European roulette. Bet on numbers, colors, or ranges!",
-          minBet: "10",
-          maxBet: "10000",
-          houseEdge: "0.027",
-        },
-      ]);
-      console.log("✅ Created casino games: Slots, Crash, Dice, Andar Bahar, Teen Patti, Lucky 7, Roulette");
+    const allGames = [
+      {
+        name: "Classic Slots",
+        slug: "classic-slots",
+        type: "slots" as const,
+        description: "Spin the reels and match symbols to win big!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.03",
+      },
+      {
+        name: "Crash",
+        slug: "crash",
+        type: "crash" as const,
+        description: "Cash out before the multiplier crashes!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.03",
+      },
+      {
+        name: "Dice",
+        slug: "dice",
+        type: "dice" as const,
+        description: "Predict if the roll will be higher or lower than your target.",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.03",
+      },
+      {
+        name: "Andar Bahar",
+        slug: "andar-bahar",
+        type: "andar_bahar" as const,
+        description: "Classic Indian card game. Bet on which side the matching card appears!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.05",
+      },
+      {
+        name: "Teen Patti",
+        slug: "teen-patti",
+        type: "teen_patti" as const,
+        description: "Indian 3-card poker. Beat the dealer with the best hand!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.03",
+      },
+      {
+        name: "Lucky 7",
+        slug: "lucky-7",
+        type: "lucky_7" as const,
+        description: "Predict if the card will be lower than 7, exactly 7, or higher!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.03",
+      },
+      {
+        name: "Roulette",
+        slug: "roulette",
+        type: "roulette" as const,
+        description: "Classic European roulette. Bet on numbers, colors, or ranges!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.027",
+      },
+    ];
+    
+    const missingGames = allGames.filter(g => !existingSlugs.has(g.slug));
+    
+    if (missingGames.length > 0) {
+      await db.insert(casinoGames).values(missingGames);
+      console.log(`✅ Added ${missingGames.length} new casino games: ${missingGames.map(g => g.name).join(', ')}`);
     } else {
-      console.log(`ℹ️  ${existingCasinoGames.length} casino games already exist`);
+      console.log(`ℹ️  All ${existingCasinoGames.length} casino games already exist`);
     }
 
     console.log("\n🎉 Database seeding completed successfully!");
