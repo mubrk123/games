@@ -25,7 +25,8 @@ export function MobileOddsCard({ matchId, onBetSelect, onInstanceBetSelect }: Mo
   const { data: instanceData } = useQuery({
     queryKey: ['instance-markets', matchId],
     queryFn: () => api.getInstanceMarkets(matchId, match?.sport || 'cricket', match?.homeTeam, match?.awayTeam),
-    refetchInterval: 15000,
+    refetchInterval: 30000,
+    staleTime: 20000,
     enabled: !!match && match.status === 'LIVE' && match.sport === 'cricket',
   });
 

@@ -27,7 +27,8 @@ export default function AdminPanel() {
       const result = await api.getAllUsers();
       return result.users;
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
+    staleTime: 20000,
   });
 
   // Fetch all bets
@@ -37,7 +38,8 @@ export default function AdminPanel() {
       const result = await api.getAllBets();
       return result.bets;
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
+    staleTime: 20000,
   });
 
   const users = usersData || [];

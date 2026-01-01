@@ -48,7 +48,8 @@ export default function MatchDetail() {
         return null;
       }
     },
-    refetchInterval: 5000,
+    refetchInterval: 15000,
+    staleTime: 10000,
     enabled: !!params?.id && match?.status === 'LIVE',
   });
 
@@ -58,7 +59,8 @@ export default function MatchDetail() {
       if (!params?.id || !match) return { markets: [] };
       return api.getInstanceMarkets(params.id, match.sport, match.homeTeam, match.awayTeam);
     },
-    refetchInterval: 10000,
+    refetchInterval: 20000,
+    staleTime: 15000,
     enabled: !!params?.id && !!match && match.status === 'LIVE',
   });
 

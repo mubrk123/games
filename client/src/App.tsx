@@ -4,25 +4,36 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useStore } from "@/lib/store";
-import NotFound from "@/pages/not-found";
-import Dashboard from "@/pages/dashboard";
-import Casino from "@/pages/casino";
-import SlotsGame from "@/pages/casino/slots";
-import CrashGame from "@/pages/casino/crash";
-import DiceGame from "@/pages/casino/dice";
-import AndarBaharGame from "@/pages/casino/andar-bahar";
-import TeenPattiGame from "@/pages/casino/teen-patti";
-import Lucky7Game from "@/pages/casino/lucky-7";
-import RouletteGame from "@/pages/casino/roulette";
-import AdminPanel from "@/pages/admin";
-import Login from "@/pages/auth/login";
-import MyBets from "@/pages/my-bets";
-import Profile from "@/pages/profile";
-import MatchDetail from "@/pages/match-detail";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { api } from "@/lib/api";
 
-// Protected Route Wrapper
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const Casino = lazy(() => import("@/pages/casino"));
+const SlotsGame = lazy(() => import("@/pages/casino/slots"));
+const CrashGame = lazy(() => import("@/pages/casino/crash"));
+const DiceGame = lazy(() => import("@/pages/casino/dice"));
+const AndarBaharGame = lazy(() => import("@/pages/casino/andar-bahar"));
+const TeenPattiGame = lazy(() => import("@/pages/casino/teen-patti"));
+const Lucky7Game = lazy(() => import("@/pages/casino/lucky-7"));
+const RouletteGame = lazy(() => import("@/pages/casino/roulette"));
+const AdminPanel = lazy(() => import("@/pages/admin"));
+const Login = lazy(() => import("@/pages/auth/login"));
+const MyBets = lazy(() => import("@/pages/my-bets"));
+const Profile = lazy(() => import("@/pages/profile"));
+const MatchDetail = lazy(() => import("@/pages/match-detail"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+
+function PageLoader() {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-background">
+      <div className="text-center">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+        <p className="mt-4 text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType<any>, adminOnly?: boolean }) {
   const [location, setLocation] = useLocation();
   const currentUser = useStore(state => state.currentUser);
@@ -38,14 +49,18 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
   if (!currentUser) return null;
   if (adminOnly && currentUser.role !== 'ADMIN') return null;
 
-  return <Component />;
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Component />
+    </Suspense>
+  );
 }
 
 function Router() {
   const setCurrentUser = useStore(state => state.setCurrentUser);
+  const currentUser = useStore(state => state.currentUser);
   const [isChecking, setIsChecking] = useState(true);
 
-  // Check authentication status on app load
   useEffect(() => {
     async function checkAuth() {
       try {
@@ -59,7 +74,6 @@ function Router() {
           currency: user.currency
         });
       } catch (error) {
-        // Not logged in, that's fine
         setCurrentUser(null);
       } finally {
         setIsChecking(false);
@@ -69,16 +83,8 @@ function Router() {
     checkAuth();
   }, [setCurrentUser]);
 
-  // Show loading while checking auth
   if (isChecking) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-          <p className="mt-4 text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
@@ -89,7 +95,11 @@ function Router() {
           return null;
         }}
       </Route>
-      <Route path="/auth/login" component={Login} />
+      <Route path="/auth/login">
+        <Suspense fallback={<PageLoader />}>
+          <Login />
+        </Suspense>
+      </Route>
       <Route path="/">
         <ProtectedRoute component={Dashboard} />
       </Route>
@@ -132,7 +142,11 @@ function Router() {
       <Route path="/admin">
         <ProtectedRoute component={AdminPanel} adminOnly={true} />
       </Route>
-      <Route component={NotFound} />
+      <Route>
+        <Suspense fallback={<PageLoader />}>
+          <NotFound />
+        </Suspense>
+      </Route>
     </Switch>
   );
 }

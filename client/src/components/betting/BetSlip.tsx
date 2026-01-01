@@ -34,7 +34,8 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
       const result = await api.getUserBets();
       return result.bets;
     },
-    refetchInterval: 5000, // Refetch every 5 seconds
+    refetchInterval: 30000,
+    staleTime: 20000,
     enabled: !!currentUser,
   });
 
