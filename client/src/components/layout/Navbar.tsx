@@ -36,11 +36,11 @@ export function Navbar() {
           <span className="font-medium">Casino</span>
         </div>
       </Link>
-      {currentUser?.role === 'ADMIN' && (
+      {(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') && (
         <Link href="/admin">
           <div className={cn("flex items-center gap-3 px-3 py-2 rounded-md transition-colors cursor-pointer text-orange-500", location === "/admin" ? "bg-orange-500/10" : "hover:bg-orange-500/5")}>
             <Settings className="h-4 w-4" />
-            <span className="font-medium">Admin Panel</span>
+            <span className="font-medium">{currentUser?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin Panel'}</span>
           </div>
         </Link>
       )}
