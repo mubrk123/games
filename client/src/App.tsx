@@ -38,16 +38,18 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
   const [location, setLocation] = useLocation();
   const currentUser = useStore(state => state.currentUser);
 
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN';
+
   useEffect(() => {
     if (!currentUser) {
       setLocation('/auth/login');
-    } else if (adminOnly && currentUser.role !== 'ADMIN') {
+    } else if (adminOnly && !isAdmin) {
       setLocation('/');
     }
-  }, [currentUser, location, setLocation, adminOnly]);
+  }, [currentUser, location, setLocation, adminOnly, isAdmin]);
 
   if (!currentUser) return null;
-  if (adminOnly && currentUser.role !== 'ADMIN') return null;
+  if (adminOnly && !isAdmin) return null;
 
   return (
     <Suspense fallback={<PageLoader />}>

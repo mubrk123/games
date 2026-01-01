@@ -85,10 +85,18 @@ export function requireAuth(req: any, res: any, next: any) {
   res.status(401).json({ error: "Unauthorized" });
 }
 
-// Middleware to require admin role
+// Middleware to require admin or super admin role
 export function requireAdmin(req: any, res: any, next: any) {
-  if (req.isAuthenticated() && req.user.role === 'ADMIN') {
+  if (req.isAuthenticated() && (req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN')) {
     return next();
   }
   res.status(403).json({ error: "Forbidden - Admin access required" });
+}
+
+// Middleware to require super admin role only
+export function requireSuperAdmin(req: any, res: any, next: any) {
+  if (req.isAuthenticated() && req.user.role === 'SUPER_ADMIN') {
+    return next();
+  }
+  res.status(403).json({ error: "Forbidden - Super Admin access required" });
 }

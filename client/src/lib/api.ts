@@ -3,14 +3,17 @@
 export interface ApiUser {
   id: string;
   username: string;
-  role: 'USER' | 'ADMIN' | 'AGENT';
+  role: 'USER' | 'ADMIN' | 'AGENT' | 'SUPER_ADMIN';
   balance: string;
   exposure: string;
   currency: string;
+  createdById?: string;
   createdAt: string;
   totalBets?: number;
   wonBets?: number;
   lostBets?: number;
+  usersCreated?: number;
+  totalDistributed?: number;
 }
 
 export interface ApiMatch {
@@ -147,6 +150,58 @@ class ApiClient {
 
   async getAllBets(): Promise<{ bets: ApiBet[] }> {
     return this.request('/admin/bets');
+  }
+
+  // ============================================
+  // Super Admin - Admin Management
+  // ============================================
+
+  async getAdmins(): Promise<{ admins: ApiUser[] }> {
+    return this.request('/super-admin/admins');
+  }
+
+  async createAdmin(data: {
+    username: string;
+    password: string;
+    balance?: string;
+  }): Promise<{ admin: ApiUser }> {
+    return this.request('/super-admin/admins', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async addBalanceToAdmin(adminId: string, amount: number): Promise<{ admin: ApiUser }> {
+    return this.request(`/super-admin/admins/${adminId}/add-balance`, {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
+  }
+
+  // ============================================
+  // Admin - Balance Distribution
+  // ============================================
+
+  async getMyUsers(): Promise<{ users: ApiUser[] }> {
+    return this.request('/admin/my-users');
+  }
+
+  async createUserWithBalance(data: {
+    username: string;
+    password: string;
+    balance?: string;
+  }): Promise<{ user: ApiUser }> {
+    return this.request('/admin/create-user', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async distributeBalance(userId: string, amount: number): Promise<{ success: boolean; user: { id: string; balance: string }; adminBalance: string }> {
+    return this.request('/admin/distribute-balance', {
+      method: 'POST',
+      body: JSON.stringify({ userId, amount }),
+    });
   }
 
   // ============================================

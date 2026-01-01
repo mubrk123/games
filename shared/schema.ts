@@ -4,7 +4,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Enums
-export const userRoleEnum = pgEnum('user_role', ['USER', 'ADMIN', 'AGENT']);
+export const userRoleEnum = pgEnum('user_role', ['USER', 'ADMIN', 'AGENT', 'SUPER_ADMIN']);
 export const betTypeEnum = pgEnum('bet_type', ['BACK', 'LAY']);
 export const betStatusEnum = pgEnum('bet_status', ['OPEN', 'WON', 'LOST', 'VOID']);
 export const matchStatusEnum = pgEnum('match_status', ['LIVE', 'UPCOMING', 'FINISHED']);
@@ -29,6 +29,7 @@ export const users = pgTable("users", {
   balance: decimal("balance", { precision: 10, scale: 2 }).notNull().default('0'),
   exposure: decimal("exposure", { precision: 10, scale: 2 }).notNull().default('0'),
   currency: text("currency").notNull().default('INR'),
+  createdById: varchar("created_by_id"), // Admin who created this user, or Super Admin who created this admin
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -89,8 +90,9 @@ export const walletTransactions = pgTable("wallet_transactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  type: text("type").notNull(), // 'CREDIT', 'DEBIT', 'BET_PLACED', 'BET_WON', 'BET_LOST', 'CASINO_BET', 'CASINO_WIN'
+  type: text("type").notNull(), // 'CREDIT', 'DEBIT', 'BET_PLACED', 'BET_WON', 'BET_LOST', 'CASINO_BET', 'CASINO_WIN', 'TRANSFER_IN', 'TRANSFER_OUT'
   description: text("description"),
+  sourceUserId: varchar("source_user_id"), // For transfers: who sent/received the balance
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -143,6 +145,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   role: true,
   balance: true,
+  createdById: true,
 });
 
 export const insertMatchSchema = createInsertSchema(matches).omit({

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, requireAuth, requireAdmin } from "./auth";
+import { setupAuth, requireAuth, requireAdmin, requireSuperAdmin } from "./auth";
 import passport from "passport";
 import bcrypt from "bcrypt";
 import { insertUserSchema, insertBetSchema } from "@shared/schema";
@@ -212,6 +212,246 @@ export async function registerRoutes(
     try {
       const bets = await storage.getAllBets();
       res.json({ bets });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // Super Admin Routes
+  // ============================================
+
+  // Create a new admin (Super Admin only)
+  app.post("/api/super-admin/admins", requireSuperAdmin, async (req, res) => {
+    try {
+      const { username, password, balance } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+
+      const existing = await storage.getUserByUsername(username);
+      if (existing) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const currentUser = req.user as any;
+
+      const admin = await storage.createUser({
+        username,
+        password: hashedPassword,
+        role: 'ADMIN',
+        balance: balance || '0',
+        createdById: currentUser.id,
+      });
+
+      if (balance && parseFloat(balance) > 0) {
+        await storage.createWalletTransaction({
+          userId: admin.id,
+          amount: balance,
+          type: 'CREDIT',
+          description: 'Initial balance from Super Admin',
+          sourceUserId: currentUser.id,
+        });
+      }
+
+      const { password: _, ...adminWithoutPassword } = admin;
+      res.json({ admin: adminWithoutPassword });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all admins (Super Admin only)
+  app.get("/api/super-admin/admins", requireSuperAdmin, async (req, res) => {
+    try {
+      const admins = await storage.getUsersByRole('ADMIN');
+
+      const adminsWithStats = await Promise.all(
+        admins.map(async (admin) => {
+          const { password, ...adminData } = admin;
+          const usersCreated = await storage.getUsersByCreatedBy(admin.id);
+          return {
+            ...adminData,
+            usersCreated: usersCreated.length,
+            totalDistributed: usersCreated.reduce((sum, u) => sum + parseFloat(u.balance), 0),
+          };
+        })
+      );
+
+      res.json({ admins: adminsWithStats });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Add balance to admin (Super Admin only)
+  app.post("/api/super-admin/admins/:id/add-balance", requireSuperAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { amount } = req.body;
+
+      if (!amount || isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+
+      const admin = await storage.getUser(id);
+      if (!admin || admin.role !== 'ADMIN') {
+        return res.status(404).json({ error: "Admin not found" });
+      }
+
+      const currentBalance = parseFloat(admin.balance);
+      const newBalance = currentBalance + parseFloat(amount);
+
+      const updatedAdmin = await storage.updateUserBalance(id, newBalance);
+
+      const currentUser = req.user as any;
+      await storage.createWalletTransaction({
+        userId: id,
+        amount: String(amount),
+        type: 'CREDIT',
+        description: 'Balance added by Super Admin',
+        sourceUserId: currentUser.id,
+      });
+
+      const { password, ...adminWithoutPassword } = updatedAdmin!;
+      res.json({ admin: adminWithoutPassword });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // Admin Balance Distribution Routes
+  // ============================================
+
+  // Get users created by current admin
+  app.get("/api/admin/my-users", requireAdmin, async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      
+      if (currentUser.role === 'SUPER_ADMIN') {
+        const admins = await storage.getUsersByRole('ADMIN');
+        const users = await storage.getUsersByRole('USER');
+        const allUsers = [...admins, ...users].map(({ password, ...user }) => user);
+        return res.json({ users: allUsers });
+      }
+
+      const users = await storage.getUsersByCreatedBy(currentUser.id);
+      const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+      res.json({ users: usersWithoutPasswords });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin creates a user (uses admin's balance)
+  app.post("/api/admin/create-user", requireAdmin, async (req, res) => {
+    try {
+      const { username, password, balance } = req.body;
+      const currentUser = req.user as any;
+
+      if (currentUser.role === 'SUPER_ADMIN') {
+        return res.status(400).json({ error: "Super Admins should use /api/super-admin/admins to create admins" });
+      }
+
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+
+      const existing = await storage.getUserByUsername(username);
+      if (existing) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const initialBalance = parseFloat(balance || '0');
+      const adminBalance = parseFloat(currentUser.balance);
+
+      if (initialBalance > adminBalance) {
+        return res.status(400).json({ error: "Insufficient balance. Contact Super Admin for more funds." });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const user = await storage.createUser({
+        username,
+        password: hashedPassword,
+        role: 'USER',
+        balance: String(initialBalance),
+        createdById: currentUser.id,
+      });
+
+      if (initialBalance > 0) {
+        const transferResult = await storage.transferBalance(
+          currentUser.id,
+          user.id,
+          initialBalance,
+          `Initial balance for new user ${username}`
+        );
+
+        if (!transferResult.success) {
+          return res.status(400).json({ error: transferResult.error });
+        }
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({ user: userWithoutPassword });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin distributes balance to user (from admin's own balance)
+  app.post("/api/admin/distribute-balance", requireAdmin, async (req, res) => {
+    try {
+      const { userId, amount } = req.body;
+      const currentUser = req.user as any;
+
+      const parsedAmount = parseFloat(amount);
+      if (!userId || !amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ error: "Invalid user ID or amount" });
+      }
+
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (currentUser.role === 'ADMIN') {
+        if (targetUser.role !== 'USER') {
+          return res.status(403).json({ error: "Admins can only distribute to regular users" });
+        }
+        if (targetUser.createdById !== currentUser.id) {
+          return res.status(403).json({ error: "You can only distribute to users you created" });
+        }
+      }
+
+      if (currentUser.role === 'SUPER_ADMIN') {
+        if (targetUser.role !== 'ADMIN' && targetUser.role !== 'USER') {
+          return res.status(403).json({ error: "Super Admin can only distribute to admins or users" });
+        }
+      }
+
+      const result = await storage.transferBalance(
+        currentUser.id,
+        userId,
+        parsedAmount,
+        `Balance distributed by ${currentUser.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'}`
+      );
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      const updatedUser = await storage.getUser(userId);
+      const updatedAdmin = await storage.getUser(currentUser.id);
+
+      res.json({
+        success: true,
+        user: { id: updatedUser!.id, balance: updatedUser!.balance },
+        adminBalance: updatedAdmin!.balance,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

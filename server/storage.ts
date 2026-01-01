@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, inArray } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import type {
   User,
@@ -34,7 +34,10 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
+  getUsersByCreatedBy(createdById: string): Promise<User[]>;
+  getUsersByRole(role: 'USER' | 'ADMIN' | 'AGENT' | 'SUPER_ADMIN'): Promise<User[]>;
   updateUserBalance(userId: string, amount: number): Promise<User | undefined>;
+  transferBalance(fromUserId: string, toUserId: string, amount: number, description: string): Promise<{ success: boolean; error?: string }>;
   
   // Match Operations
   getAllMatches(): Promise<Match[]>;
@@ -92,6 +95,74 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.users.id, userId))
       .returning();
     return result[0];
+  }
+
+  async getUsersByCreatedBy(createdById: string): Promise<User[]> {
+    return await db.select().from(schema.users).where(eq(schema.users.createdById, createdById)).orderBy(desc(schema.users.createdAt));
+  }
+
+  async getUsersByRole(role: 'USER' | 'ADMIN' | 'AGENT' | 'SUPER_ADMIN'): Promise<User[]> {
+    return await db.select().from(schema.users).where(eq(schema.users.role, role)).orderBy(desc(schema.users.createdAt));
+  }
+
+  async transferBalance(fromUserId: string, toUserId: string, amount: number, description: string): Promise<{ success: boolean; error?: string }> {
+    if (amount <= 0) {
+      return { success: false, error: 'Amount must be positive' };
+    }
+    if (!Number.isFinite(amount)) {
+      return { success: false, error: 'Invalid amount' };
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const fromUserResult = await client.query(
+        'SELECT id, balance FROM users WHERE id = $1 FOR UPDATE',
+        [fromUserId]
+      );
+      const toUserResult = await client.query(
+        'SELECT id, balance FROM users WHERE id = $1 FOR UPDATE',
+        [toUserId]
+      );
+
+      if (fromUserResult.rows.length === 0 || toUserResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'User not found' };
+      }
+
+      const fromBalance = parseFloat(fromUserResult.rows[0].balance);
+      const toBalance = parseFloat(toUserResult.rows[0].balance);
+
+      if (fromBalance < amount) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'Insufficient balance' };
+      }
+
+      const newFromBalance = (fromBalance - amount).toFixed(2);
+      const newToBalance = (toBalance + amount).toFixed(2);
+
+      await client.query('UPDATE users SET balance = $1 WHERE id = $2', [newFromBalance, fromUserId]);
+      await client.query('UPDATE users SET balance = $1 WHERE id = $2', [newToBalance, toUserId]);
+
+      await client.query(
+        'INSERT INTO wallet_transactions (id, user_id, amount, type, description, source_user_id) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)',
+        [fromUserId, (-amount).toFixed(2), 'TRANSFER_OUT', description, toUserId]
+      );
+
+      await client.query(
+        'INSERT INTO wallet_transactions (id, user_id, amount, type, description, source_user_id) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)',
+        [toUserId, amount.toFixed(2), 'TRANSFER_IN', description, fromUserId]
+      );
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      return { success: false, error: error.message };
+    } finally {
+      client.release();
+    }
   }
 
   // Match Operations

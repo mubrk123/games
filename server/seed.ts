@@ -7,47 +7,80 @@ async function seed() {
   console.log("🌱 Starting database seeding...");
 
   try {
-    // Create admin user
+    // Create super admin user
+    const superAdminExists = await storage.getUserByUsername("superadmin");
+    if (!superAdminExists) {
+      const hashedPassword = await bcrypt.hash("superadmin123", 10);
+      const superAdmin = await storage.createUser({
+        username: "superadmin",
+        password: hashedPassword,
+        role: "SUPER_ADMIN",
+        balance: "1000000",
+      });
+
+      await storage.createWalletTransaction({
+        userId: superAdmin.id,
+        amount: "1000000",
+        type: "CREDIT",
+        description: "Initial super admin balance",
+      });
+
+      console.log(
+        "✅ Super Admin created (username: superadmin, password: superadmin123)",
+      );
+    } else {
+      console.log("ℹ️  Super Admin already exists");
+    }
+
+    // Create admin user (created by super admin for demo)
     const adminExists = await storage.getUserByUsername("admin");
     if (!adminExists) {
+      const superAdmin = await storage.getUserByUsername("superadmin");
       const hashedPassword = await bcrypt.hash("admin123", 10);
       const admin = await storage.createUser({
         username: "admin",
         password: hashedPassword,
         role: "ADMIN",
         balance: "100000",
+        createdById: superAdmin?.id,
       });
-      
+
       await storage.createWalletTransaction({
         userId: admin.id,
         amount: "100000",
         type: "CREDIT",
-        description: "Initial admin balance",
+        description: "Initial admin balance from Super Admin",
+        sourceUserId: superAdmin?.id,
       });
-      
-      console.log("✅ Admin user created (username: admin, password: admin123)");
+
+      console.log(
+        "✅ Admin user created (username: admin, password: admin123)",
+      );
     } else {
       console.log("ℹ️  Admin user already exists");
     }
 
-    // Create demo user
+    // Create demo user (created by admin for demo)
     const userExists = await storage.getUserByUsername("demo");
     if (!userExists) {
+      const admin = await storage.getUserByUsername("admin");
       const hashedPassword = await bcrypt.hash("demo123", 10);
       const user = await storage.createUser({
         username: "demo",
         password: hashedPassword,
         role: "USER",
         balance: "10000",
+        createdById: admin?.id,
       });
-      
+
       await storage.createWalletTransaction({
         userId: user.id,
         amount: "10000",
         type: "CREDIT",
-        description: "Initial balance",
+        description: "Initial balance from Admin",
+        sourceUserId: admin?.id,
       });
-      
+
       console.log("✅ Demo user created (username: demo, password: demo123)");
     } else {
       console.log("ℹ️  Demo user already exists");
@@ -55,7 +88,7 @@ async function seed() {
 
     // Get existing matches
     const existingMatches = await storage.getAllMatches();
-    
+
     if (existingMatches.length === 0) {
       // Create sample cricket matches
       const match1 = await storage.createMatch({
@@ -93,7 +126,9 @@ async function seed() {
         volume: 98000,
       });
 
-      console.log("✅ Created cricket match: Mumbai Indians vs Chennai Super Kings");
+      console.log(
+        "✅ Created cricket match: Mumbai Indians vs Chennai Super Kings",
+      );
 
       // Create another match
       const match2 = await storage.createMatch({
@@ -127,7 +162,9 @@ async function seed() {
         volume: 87000,
       });
 
-      console.log("✅ Created cricket match: Royal Challengers Bangalore vs Kolkata Knight Riders");
+      console.log(
+        "✅ Created cricket match: Royal Challengers Bangalore vs Kolkata Knight Riders",
+      );
 
       // Football match
       const match3 = await storage.createMatch({
@@ -171,13 +208,15 @@ async function seed() {
 
       console.log("✅ Created football match: Manchester United vs Liverpool");
     } else {
-      console.log(`ℹ️  ${existingMatches.length} matches already exist in database`);
+      console.log(
+        `ℹ️  ${existingMatches.length} matches already exist in database`,
+      );
     }
 
     // Seed casino games - add missing ones
     const existingCasinoGames = await db.select().from(casinoGames);
-    const existingSlugs = new Set(existingCasinoGames.map(g => g.slug));
-    
+    const existingSlugs = new Set(existingCasinoGames.map((g) => g.slug));
+
     const allGames = [
       {
         name: "Classic Slots",
@@ -201,7 +240,8 @@ async function seed() {
         name: "Dice",
         slug: "dice",
         type: "dice" as const,
-        description: "Predict if the roll will be higher or lower than your target.",
+        description:
+          "Predict if the roll will be higher or lower than your target.",
         minBet: "10",
         maxBet: "10000",
         houseEdge: "0.03",
@@ -210,7 +250,8 @@ async function seed() {
         name: "Andar Bahar",
         slug: "andar-bahar",
         type: "andar_bahar" as const,
-        description: "Classic Indian card game. Bet on which side the matching card appears!",
+        description:
+          "Classic Indian card game. Bet on which side the matching card appears!",
         minBet: "10",
         maxBet: "10000",
         houseEdge: "0.05",
@@ -228,7 +269,8 @@ async function seed() {
         name: "Lucky 7",
         slug: "lucky-7",
         type: "lucky_7" as const,
-        description: "Predict if the card will be lower than 7, exactly 7, or higher!",
+        description:
+          "Predict if the card will be lower than 7, exactly 7, or higher!",
         minBet: "10",
         maxBet: "10000",
         houseEdge: "0.03",
@@ -237,22 +279,27 @@ async function seed() {
         name: "Roulette",
         slug: "roulette",
         type: "roulette" as const,
-        description: "Classic European roulette. Bet on numbers, colors, or ranges!",
+        description:
+          "Classic European roulette. Bet on numbers, colors, or ranges!",
         minBet: "10",
         maxBet: "10000",
         houseEdge: "0.027",
       },
     ];
-    
-    const missingGames = allGames.filter(g => !existingSlugs.has(g.slug));
-    
+
+    const missingGames = allGames.filter((g) => !existingSlugs.has(g.slug));
+
     if (missingGames.length > 0) {
       for (const game of missingGames) {
         await db.insert(casinoGames).values(game as any);
       }
-      console.log(`✅ Added ${missingGames.length} new casino games: ${missingGames.map(g => g.name).join(', ')}`);
+      console.log(
+        `✅ Added ${missingGames.length} new casino games: ${missingGames.map((g) => g.name).join(", ")}`,
+      );
     } else {
-      console.log(`ℹ️  All ${existingCasinoGames.length} casino games already exist`);
+      console.log(
+        `ℹ️  All ${existingCasinoGames.length} casino games already exist`,
+      );
     }
 
     console.log("\n🎉 Database seeding completed successfully!");

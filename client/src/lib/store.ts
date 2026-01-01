@@ -3,7 +3,7 @@ import { create } from 'zustand';
 export interface User {
   id: string;
   username: string;
-  role: 'USER' | 'ADMIN' | 'AGENT';
+  role: 'USER' | 'ADMIN' | 'AGENT' | 'SUPER_ADMIN';
   balance: number;
   exposure: number;
   currency: string;
