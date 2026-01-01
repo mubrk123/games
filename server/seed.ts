@@ -1,7 +1,9 @@
 import { storage, db } from "./storage";
-import { casinoGames, InsertCasinoGame } from "@shared/schema";
+import { casinoGames, casinoGameTypeEnum, InsertCasinoGame } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
+
+const gameTypes = casinoGameTypeEnum.enumValues;
 
 async function seed() {
   console.log("🌱 Starting database seeding...");
@@ -182,7 +184,7 @@ async function seed() {
       {
         name: "Classic Slots",
         slug: "classic-slots",
-        type: "slots",
+        type: gameTypes[0], // slots
         description: "Spin the reels and match symbols to win big!",
         minBet: "10",
         maxBet: "10000",
@@ -191,7 +193,7 @@ async function seed() {
       {
         name: "Crash",
         slug: "crash",
-        type: "crash",
+        type: gameTypes[1], // crash
         description: "Cash out before the multiplier crashes!",
         minBet: "10",
         maxBet: "10000",
@@ -200,7 +202,7 @@ async function seed() {
       {
         name: "Dice",
         slug: "dice",
-        type: "dice",
+        type: gameTypes[2], // dice
         description: "Predict if the roll will be higher or lower than your target.",
         minBet: "10",
         maxBet: "10000",
@@ -209,7 +211,7 @@ async function seed() {
       {
         name: "Andar Bahar",
         slug: "andar-bahar",
-        type: "andar_bahar",
+        type: gameTypes[5], // andar_bahar
         description: "Classic Indian card game. Bet on which side the matching card appears!",
         minBet: "10",
         maxBet: "10000",
@@ -218,7 +220,7 @@ async function seed() {
       {
         name: "Teen Patti",
         slug: "teen-patti",
-        type: "teen_patti",
+        type: gameTypes[6], // teen_patti
         description: "Indian 3-card poker. Beat the dealer with the best hand!",
         minBet: "10",
         maxBet: "10000",
@@ -227,7 +229,7 @@ async function seed() {
       {
         name: "Lucky 7",
         slug: "lucky-7",
-        type: "lucky_7",
+        type: gameTypes[7], // lucky_7
         description: "Predict if the card will be lower than 7, exactly 7, or higher!",
         minBet: "10",
         maxBet: "10000",
@@ -236,7 +238,7 @@ async function seed() {
       {
         name: "Roulette",
         slug: "roulette",
-        type: "roulette",
+        type: gameTypes[3], // roulette
         description: "Classic European roulette. Bet on numbers, colors, or ranges!",
         minBet: "10",
         maxBet: "10000",
