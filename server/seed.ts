@@ -248,7 +248,7 @@ async function seed() {
     
     if (missingGames.length > 0) {
       for (const game of missingGames) {
-        await db.insert(casinoGames).values(game);
+        await db.insert(casinoGames).values(game as any);
       }
       console.log(`✅ Added ${missingGames.length} new casino games: ${missingGames.map(g => g.name).join(', ')}`);
     } else {
