@@ -347,7 +347,6 @@ class InstanceSettlementService {
     console.log(`[InstanceSettlement] Service started (checking every ${intervalMs / 1000}s)`);
 
     this.intervalId = setInterval(async () => {
-      await this.syncMarketsWithLiveState();
       await this.settleExpiredMarkets();
       await this.checkAndSettleLiveMatches();
     }, intervalMs);

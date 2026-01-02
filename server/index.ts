@@ -91,9 +91,9 @@ app.use((req, res, next) => {
     // Start settlement service (check every 4 minutes = 240000ms)
     settlementService.start(240000);
     
-    // Start instance settlement service for ball-by-ball betting (check every 10 seconds)
+    // Start instance settlement service for ball-by-ball betting (check every 4 minutes = 240000ms)
     import("./instanceSettlementService").then(({ instanceSettlementService }) => {
-      instanceSettlementService.start(10000);
+      instanceSettlementService.start(240000);
     });
   });
 })();
