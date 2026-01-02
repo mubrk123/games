@@ -20,6 +20,7 @@ const AdminPanel = lazy(() => import("@/pages/admin"));
 const Login = lazy(() => import("@/pages/auth/login"));
 const MyBets = lazy(() => import("@/pages/my-bets"));
 const Profile = lazy(() => import("@/pages/profile"));
+const Withdrawals = lazy(() => import("@/pages/withdrawals"));
 const MatchDetail = lazy(() => import("@/pages/match-detail"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
@@ -137,6 +138,9 @@ function Router() {
       </Route>
       <Route path="/profile">
         <ProtectedRoute component={Profile} />
+      </Route>
+      <Route path="/withdrawals">
+        <ProtectedRoute component={Withdrawals} />
       </Route>
       <Route path="/match/:id">
         <ProtectedRoute component={MatchDetail} />
