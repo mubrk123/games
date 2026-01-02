@@ -19,8 +19,10 @@ ProBetX is a full-stack, mobile-first sports betting exchange platform inspired 
 | **Back/Lay Betting** | Traditional exchange-style betting on match outcomes | `server/routes.ts`, `client/src/components/betting/` |
 | **Live Cricket** | Real matches from CricketData.org API with live scores | `server/cricketApi.ts` |
 | **Real-time Updates** | 5-second polling for live match scores | `client/src/pages/match-detail.tsx` |
-| **Instance Betting** | Next Ball, Next Over, Session markets with 30s expiry, persisted to DB | `server/instanceBetting.ts`, `server/instanceSettlementService.ts` |
-| **Auto-Settlement** | Transaction-safe settlement with Cricket API and Odds API result detection | `server/settlementService.ts` |
+| **Instance Betting** | Next Ball, Next Over, Session markets synced with live over/ball state, 60s expiry | `server/instanceBetting.ts`, `server/instanceSettlementService.ts` |
+| **Market Sync** | Markets open for upcoming balls (next 3 balls, current+next over), close when events pass | `server/instanceBetting.ts` |
+| **Auto-Settlement** | Batch settlement every 4 minutes for all users atomically | `server/settlementService.ts` |
+| **Withdrawal System** | User requests → Admin approves → Funds transfer (winnings only) | `server/routes.ts`, `server/storage.ts` |
 | **Instance Bet Persistence** | Ball-by-ball bets stored in PostgreSQL with full audit trail | `shared/schema.ts`, `server/storage.ts` |
 | **Manual Settlement** | Admin can manually settle or void bets for any match | `server/routes.ts`, `server/settlementService.ts` |
 | **Anti-Exploitation** | 10-second latency guard, 30s market windows, critical moment suspension | `server/routes.ts`, `server/instanceBetting.ts` |
