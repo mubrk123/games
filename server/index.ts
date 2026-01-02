@@ -82,27 +82,18 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Serve the app on the port specified in the environment variable PORT
+  // Default to 5000 for Replit, can be overridden in .env for local dev
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-      
-      // Start settlement service to auto-settle bets (check every 60 seconds)
-      settlementService.start(60000);
-      
-      // Start instance settlement service for ball-by-ball betting (check every 10 seconds)
-      import("./instanceSettlementService").then(({ instanceSettlementService }) => {
-        instanceSettlementService.start(10000);
-      });
-    },
-  );
+  httpServer.listen(port, "0.0.0.0", () => {
+    log(`serving on port ${port}`);
+    
+    // Start settlement service (check every 4 minutes = 240000ms)
+    settlementService.start(240000);
+    
+    // Start instance settlement service for ball-by-ball betting (check every 10 seconds)
+    import("./instanceSettlementService").then(({ instanceSettlementService }) => {
+      instanceSettlementService.start(10000);
+    });
+  });
 })();
