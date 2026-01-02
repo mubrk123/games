@@ -275,11 +275,22 @@ export default function Dashboard() {
               Top Games
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-               {['Teen Patti', 'Andar Bahar', 'Lucky 7', 'Roulette'].map((game, i) => (
-                 <div key={i} className="aspect-video rounded-lg bg-gradient-to-br from-purple-900/50 to-blue-900/50 border border-white/10 flex items-center justify-center hover:scale-105 transition-transform cursor-pointer group relative overflow-hidden">
-                   <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors" />
-                   <span className="relative z-10 font-heading text-lg font-bold tracking-widest text-shadow">{game}</span>
-                 </div>
+               {[
+                 { name: 'Teen Patti', slug: 'teen-patti', gradient: 'from-red-900/60 to-orange-900/60', icon: '🃏' },
+                 { name: 'Andar Bahar', slug: 'andar-bahar', gradient: 'from-green-900/60 to-teal-900/60', icon: '🎴' },
+                 { name: 'Lucky 7', slug: 'lucky-7', gradient: 'from-yellow-900/60 to-amber-900/60', icon: '7️⃣' },
+                 { name: 'Roulette', slug: 'roulette', gradient: 'from-red-900/60 to-rose-900/60', icon: '🎰' },
+               ].map((game) => (
+                 <a 
+                   key={game.slug}
+                   href={`/casino/${game.slug}`}
+                   className={`aspect-video rounded-lg bg-gradient-to-br ${game.gradient} border border-white/10 flex flex-col items-center justify-center hover:scale-105 transition-transform cursor-pointer group relative overflow-hidden`}
+                   data-testid={`casino-game-${game.slug}`}
+                 >
+                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
+                   <span className="relative z-10 text-3xl mb-1">{game.icon}</span>
+                   <span className="relative z-10 font-heading text-sm font-bold tracking-wide">{game.name}</span>
+                 </a>
                ))}
             </div>
           </div>

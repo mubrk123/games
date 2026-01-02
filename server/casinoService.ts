@@ -123,11 +123,18 @@ function generateAndarBaharResult(serverSeed: string, clientSeed: string, nonce:
   let offset = 1;
   let winningSide: 'andar' | 'bahar' = 'andar';
   
+  // Randomly decide which side gets the first card (true 50/50)
+  const firstSideResult = generateResult(serverSeed, clientSeed, nonce + 100);
+  const andarFirst = firstSideResult < 0.5;
+  
   while (offset < 52) {
     const card = getCard(offset);
     const cardValue = card.slice(0, -1);
     
-    if (offset % 2 === 1) {
+    // Alternate sides, but starting side is random
+    const isAndarTurn = andarFirst ? (offset % 2 === 1) : (offset % 2 === 0);
+    
+    if (isAndarTurn) {
       andarCards.push(card);
       if (cardValue === jokerValue) {
         winningSide = 'andar';

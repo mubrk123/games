@@ -1086,6 +1086,144 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Deposit Request Routes (User requests funds from Admin)
+  // ============================================
+
+  // Request a deposit (User)
+  app.post("/api/deposits/request", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!user.createdById) {
+        return res.status(400).json({ error: "No admin assigned to your account. Please contact support." });
+      }
+
+      const { amount } = req.body;
+      const amountNum = typeof amount === 'number' ? amount : parseFloat(amount);
+
+      if (amount === undefined || amount === null || isNaN(amountNum) || amountNum <= 0) {
+        return res.status(400).json({ error: "Invalid deposit amount" });
+      }
+
+      if (amountNum > 100000) {
+        return res.status(400).json({ error: "Maximum deposit request is ₹100,000" });
+      }
+
+      const request = await storage.createDepositRequest({
+        userId,
+        adminId: user.createdById,
+        amount: amountNum.toFixed(2),
+        status: 'REQUESTED'
+      });
+
+      res.json({ request, message: "Deposit request submitted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get user's deposit requests
+  app.get("/api/deposits/me", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const requests = await storage.getUserDepositRequests(userId);
+      res.json({ requests });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get pending deposit requests for admin
+  app.get("/api/admin/deposits/pending", requireAdmin, async (req, res) => {
+    try {
+      const adminId = (req.user as any).id;
+      const requests = await storage.getPendingDepositRequests(adminId);
+      
+      const requestsWithUsers = await Promise.all(
+        requests.map(async (request) => {
+          const user = await storage.getUser(request.userId);
+          return {
+            ...request,
+            user: user ? { id: user.id, username: user.username, balance: user.balance } : null
+          };
+        })
+      );
+
+      res.json({ requests: requestsWithUsers });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Approve deposit request (Admin)
+  app.post("/api/admin/deposits/:id/approve", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const adminId = (req.user as any).id;
+
+      const requests = await storage.getPendingDepositRequests(adminId);
+      const request = requests.find(r => r.id === id);
+
+      if (!request) {
+        return res.status(404).json({ error: "Deposit request not found or not assigned to you" });
+      }
+
+      if (request.status !== 'REQUESTED') {
+        return res.status(400).json({ error: "Request already processed" });
+      }
+
+      const result = await storage.approveDepositRequest(id);
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      // Get updated balances for response
+      const updatedUser = await storage.getUser(request.userId);
+      const updatedAdmin = await storage.getUser(adminId);
+
+      res.json({ 
+        success: true, 
+        message: "Deposit approved and funds transferred to user",
+        userBalance: updatedUser?.balance,
+        adminBalance: updatedAdmin?.balance
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Reject deposit request (Admin)
+  app.post("/api/admin/deposits/:id/reject", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { notes } = req.body;
+      const adminId = (req.user as any).id;
+
+      const requests = await storage.getPendingDepositRequests(adminId);
+      const request = requests.find(r => r.id === id);
+
+      if (!request) {
+        return res.status(404).json({ error: "Deposit request not found or not assigned to you" });
+      }
+
+      if (request.status !== 'REQUESTED') {
+        return res.status(400).json({ error: "Request already processed" });
+      }
+
+      const updated = await storage.rejectDepositRequest(id, notes);
+      res.json({ request: updated, message: "Deposit request rejected" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
   // Instance Betting Routes
   // ============================================
 

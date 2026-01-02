@@ -378,6 +378,38 @@ class ApiClient {
   async verifyFairness(roundId: string): Promise<FairnessVerification> {
     return this.request(`/casino/verify/${roundId}`);
   }
+
+  // ============================================
+  // Deposit Requests
+  // ============================================
+
+  async requestDeposit(amount: number): Promise<{ request: any; message: string }> {
+    return this.request('/deposits/request', {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
+  }
+
+  async getMyDepositRequests(): Promise<{ requests: any[] }> {
+    return this.request('/deposits/me');
+  }
+
+  async getPendingDepositRequests(): Promise<{ requests: any[] }> {
+    return this.request('/admin/deposits/pending');
+  }
+
+  async approveDepositRequest(id: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/admin/deposits/${id}/approve`, {
+      method: 'POST',
+    });
+  }
+
+  async rejectDepositRequest(id: string, notes?: string): Promise<{ request: any; message: string }> {
+    return this.request(`/admin/deposits/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+  }
 }
 
 export interface InstanceMarket {

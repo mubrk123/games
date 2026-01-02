@@ -451,6 +451,116 @@ export class DatabaseStorage implements IStorage {
 
     return Math.max(0, totalWinnings - totalWithdrawn);
   }
+
+  // Deposit Request Operations (user requests funds from admin)
+  async createDepositRequest(request: schema.InsertDepositRequest): Promise<schema.DepositRequest> {
+    const result = await db.insert(schema.depositRequests).values(request).returning();
+    return result[0];
+  }
+
+  async getUserDepositRequests(userId: string): Promise<schema.DepositRequest[]> {
+    return await db.select().from(schema.depositRequests)
+      .where(eq(schema.depositRequests.userId, userId))
+      .orderBy(desc(schema.depositRequests.createdAt));
+  }
+
+  async getPendingDepositRequests(adminId: string): Promise<schema.DepositRequest[]> {
+    return await db.select().from(schema.depositRequests)
+      .where(and(
+        eq(schema.depositRequests.adminId, adminId),
+        eq(schema.depositRequests.status, 'REQUESTED')
+      ))
+      .orderBy(desc(schema.depositRequests.createdAt));
+  }
+
+  async approveDepositRequest(requestId: string): Promise<{ success: boolean; error?: string }> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const requestResult = await client.query(
+        'SELECT id, user_id, admin_id, amount, status FROM deposit_requests WHERE id = $1 FOR UPDATE',
+        [requestId]
+      );
+
+      if (requestResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'Deposit request not found' };
+      }
+
+      const request = requestResult.rows[0];
+      if (request.status !== 'REQUESTED') {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'Request already processed' };
+      }
+
+      const amount = parseFloat(request.amount);
+
+      const userResult = await client.query(
+        'SELECT id, balance FROM users WHERE id = $1 FOR UPDATE',
+        [request.user_id]
+      );
+      const adminResult = await client.query(
+        'SELECT id, balance FROM users WHERE id = $1 FOR UPDATE',
+        [request.admin_id]
+      );
+
+      if (userResult.rows.length === 0 || adminResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'User or admin not found' };
+      }
+
+      const userBalance = parseFloat(userResult.rows[0].balance);
+      const adminBalance = parseFloat(adminResult.rows[0].balance);
+
+      if (adminBalance < amount) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'Admin has insufficient balance' };
+      }
+
+      // Transfer: Admin balance decreases, User balance increases
+      const newUserBalance = (userBalance + amount).toFixed(2);
+      const newAdminBalance = (adminBalance - amount).toFixed(2);
+
+      await client.query('UPDATE users SET balance = $1 WHERE id = $2', [newUserBalance, request.user_id]);
+      await client.query('UPDATE users SET balance = $1 WHERE id = $2', [newAdminBalance, request.admin_id]);
+
+      await client.query(
+        'INSERT INTO wallet_transactions (id, user_id, amount, type, description, source_user_id) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)',
+        [request.user_id, amount.toFixed(2), 'DEPOSIT', `Deposit approved by admin`, request.admin_id]
+      );
+      await client.query(
+        'INSERT INTO wallet_transactions (id, user_id, amount, type, description, source_user_id) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)',
+        [request.admin_id, (-amount).toFixed(2), 'DEPOSIT_SENT', `Deposit to user`, request.user_id]
+      );
+
+      await client.query(
+        'UPDATE deposit_requests SET status = $1, resolved_at = NOW() WHERE id = $2',
+        ['APPROVED', requestId]
+      );
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      return { success: false, error: error.message };
+    } finally {
+      client.release();
+    }
+  }
+
+  async rejectDepositRequest(requestId: string, notes?: string): Promise<schema.DepositRequest | undefined> {
+    const result = await db
+      .update(schema.depositRequests)
+      .set({ 
+        status: 'REJECTED',
+        notes: notes || 'Request rejected by admin',
+        resolvedAt: new Date()
+      })
+      .where(eq(schema.depositRequests.id, requestId))
+      .returning();
+    return result[0];
+  }
 }
 
 export const storage = new DatabaseStorage();
