@@ -141,7 +141,7 @@ interface LiveBallUpdate {
 class CricketApiService {
   private apiKey: string | undefined;
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
-  private CACHE_TTL = 30000; // 30 seconds cache
+  private CACHE_TTL = 10000; // 10 seconds cache for fresher live data
 
   constructor() {
     this.apiKey = process.env.CRICKET_API_KEY;

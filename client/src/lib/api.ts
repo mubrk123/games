@@ -306,6 +306,10 @@ class ApiClient {
     });
   }
 
+  async getUserInstanceBets(): Promise<{ bets: any[] }> {
+    return this.request('/instance/bets/me');
+  }
+
   async getRealtimeUpdate(matchId: string): Promise<RealtimeUpdate> {
     return this.request(`/live/realtime/${matchId}`);
   }

@@ -18,7 +18,9 @@ import { Input } from "@/components/ui/input";
 
 export default function MatchDetail() {
   const [, params] = useRoute("/match/:id");
-  const match = useStore(state => state.matches.find(m => m.id === params?.id));
+  const storeMatch = useStore(state => state.matches.find(m => m.id === params?.id));
+  const setMatches = useStore(state => state.setMatches);
+  const matches = useStore(state => state.matches);
   const { currentUser, setCurrentUser } = useStore();
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -38,6 +40,47 @@ export default function MatchDetail() {
   const clearBet = () => setSelectedBet(null);
   const clearInstanceBet = () => setSelectedInstance(null);
 
+  // Fetch match from API if not in store
+  const { data: fetchedMatch, isLoading: isLoadingMatch } = useQuery({
+    queryKey: ['match', params?.id],
+    queryFn: async () => {
+      if (!params?.id) return null;
+      try {
+        // Fetch all cricket matches and find the one we need
+        const result = await api.getCurrentCricketMatches();
+        const found = result.matches.find(m => m.id === params.id);
+        if (!found) return null;
+        // Convert API match to store format (odds as numbers)
+        const converted: Match = {
+          ...found,
+          markets: found.markets.map(market => ({
+            ...market,
+            runners: market.runners.map(runner => ({
+              ...runner,
+              backOdds: typeof runner.backOdds === 'string' ? parseFloat(runner.backOdds) : runner.backOdds,
+              layOdds: typeof runner.layOdds === 'string' ? parseFloat(runner.layOdds) : runner.layOdds,
+            }))
+          }))
+        };
+        return converted;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!params?.id && !storeMatch,
+    staleTime: 10000,
+  });
+
+  // Use store match or fetched match
+  const match = storeMatch || fetchedMatch;
+
+  // Update store with fetched match
+  useEffect(() => {
+    if (fetchedMatch && !storeMatch) {
+      setMatches([...matches, fetchedMatch]);
+    }
+  }, [fetchedMatch, storeMatch, matches, setMatches]);
+
   const { data: realtimeData, refetch: refetchRealtime } = useQuery({
     queryKey: ['realtime', params?.id],
     queryFn: async () => {
@@ -48,8 +91,8 @@ export default function MatchDetail() {
         return null;
       }
     },
-    refetchInterval: 15000,
-    staleTime: 10000,
+    refetchInterval: 5000,
+    staleTime: 3000,
     enabled: !!params?.id && match?.status === 'LIVE',
   });
 
@@ -112,6 +155,19 @@ export default function MatchDetail() {
     if (seconds < 60) return `${seconds}s`;
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
   };
+
+  if (!match && isLoadingMatch) {
+    return (
+      <AppShell>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+            <p className="mt-4 text-muted-foreground">Loading match...</p>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   if (!match) {
     return (
