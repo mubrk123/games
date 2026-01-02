@@ -41,8 +41,7 @@ export async function registerRoutes(
           if (saveErr) {
             console.error("Session save error:", saveErr);
             return res.status(500).json({ error: "Session save failed" });
-          }
-          
+          }          
           // Don't send password to client
           const { password, ...userWithoutPassword } = user;
           return res.json({ user: userWithoutPassword });
