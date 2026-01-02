@@ -1,7 +1,9 @@
 import { storage, pool } from "./storage";
 import { cricketApiService } from "./cricketApi";
 import { instanceBettingService, InstanceMarket } from "./instanceBetting";
+import { realtimeHub } from "./realtimeHub";
 import type { InstanceBet } from "@shared/schema";
+import type { BetSettlement, WalletUpdate } from "@shared/realtime";
 
 interface ScoreState {
   matchId: string;
@@ -218,9 +220,45 @@ class InstanceSettlementService {
         [betStatus, winningOutcome, bet.id]
       );
 
+      let newBalance = currentBalance;
+      if (payout > 0) {
+        newBalance = currentBalance + payout;
+      }
+
+      const walletResult = await client.query(
+        'SELECT exposure FROM users WHERE id = $1',
+        [bet.userId]
+      );
+      const exposure = parseFloat(walletResult.rows[0]?.exposure || '0');
+
       await client.query('COMMIT');
 
       console.log(`[InstanceSettlement] Settled instance bet ${bet.id}: ${betStatus}, payout: ₹${payout}`);
+
+      const settlement: BetSettlement = {
+        betId: bet.id,
+        matchId: bet.matchId,
+        marketId: bet.marketId,
+        userId: bet.userId,
+        outcome: bet.outcomeName,
+        winningOutcome,
+        status: betStatus,
+        stake,
+        payout,
+        timestamp: Date.now(),
+      };
+      realtimeHub.emitBetSettlement(settlement);
+
+      const walletUpdate: WalletUpdate = {
+        userId: bet.userId,
+        balance: newBalance,
+        exposure,
+        change: payout,
+        reason: didWin ? 'Instance play won' : 'Instance play lost',
+        timestamp: Date.now(),
+      };
+      realtimeHub.emitWalletUpdate(walletUpdate);
+
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

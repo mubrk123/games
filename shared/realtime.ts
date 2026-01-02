@@ -29,13 +29,27 @@ export interface BallResult {
   timestamp: number;
 }
 
+export type InstanceMarketType = 
+  | 'NEXT_BALL'
+  | 'CURRENT_OVER'
+  | 'NEXT_OVER'
+  | 'SESSION'
+  | 'NEXT_GOAL';
+
+export type InstanceMarketStatus = 
+  | 'PENDING'
+  | 'OPEN'
+  | 'SUSPENDED'
+  | 'CLOSED'
+  | 'SETTLED';
+
 export interface MarketUpdate {
   matchId: string;
   markets: {
     id: string;
     name: string;
-    type: 'NEXT_BALL' | 'NEXT_OVER' | 'SESSION';
-    status: 'OPEN' | 'SUSPENDED' | 'CLOSED';
+    type: InstanceMarketType;
+    status: InstanceMarketStatus;
     closeTime: number;
     outcomes: {
       id: string;

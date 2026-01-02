@@ -7,14 +7,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { MobileBetSlip } from "@/components/betting/MobileBetSlip";
-import { ArrowLeft, Zap, Target, TrendingUp, Activity, Clock, AlertCircle, RefreshCw } from "lucide-react";
-import { useState, useEffect } from "react";
+import { ArrowLeft, Zap, Target, TrendingUp, Activity, Clock, AlertCircle, RefreshCw, Wifi } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, InstanceMarket, InstanceOutcome } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { wsClient } from "@/lib/websocket";
+import type { MatchScoreUpdate, BallResult, MarketUpdate, BetSettlement } from "@shared/realtime";
 
 export default function MatchDetail() {
   const [, params] = useRoute("/match/:id");
@@ -37,8 +39,65 @@ export default function MatchDetail() {
   const [instanceStake, setInstanceStake] = useState('100');
   const [isPlacingBet, setIsPlacingBet] = useState(false);
 
+  const queryClient = useQueryClient();
+  const [liveScore, setLiveScore] = useState<MatchScoreUpdate | null>(null);
+  const [lastBall, setLastBall] = useState<BallResult | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
+
   const clearBet = () => setSelectedBet(null);
   const clearInstanceBet = () => setSelectedInstance(null);
+
+  useEffect(() => {
+    wsClient.connect();
+    
+    const checkConnection = setInterval(() => {
+      setWsConnected(wsClient.getConnectionStatus());
+    }, 1000);
+
+    return () => clearInterval(checkConnection);
+  }, []);
+
+  useEffect(() => {
+    if (!params?.id) return;
+
+    wsClient.subscribeToMatch(params.id);
+
+    const unsubScore = wsClient.on<MatchScoreUpdate>('match:score', (data) => {
+      if (data.matchId === params.id) {
+        setLiveScore(data);
+      }
+    });
+
+    const unsubBall = wsClient.on<BallResult>('match:ball', (data) => {
+      if (data.matchId === params.id) {
+        setLastBall(data);
+        queryClient.invalidateQueries({ queryKey: ['instance-markets', params.id] });
+      }
+    });
+
+    const unsubMarkets = wsClient.on<MarketUpdate>('markets:update', (data) => {
+      if (data.matchId === params.id) {
+        queryClient.invalidateQueries({ queryKey: ['instance-markets', params.id] });
+      }
+    });
+
+    const unsubSettlement = wsClient.on<BetSettlement>('bet:settled', (data) => {
+      toast({
+        title: data.status === 'WON' ? '🎉 You Won!' : 'Play Settled',
+        description: `${data.outcome}: ${data.status} - ₹${data.payout.toFixed(2)}`,
+        variant: data.status === 'WON' ? 'default' : 'destructive',
+      });
+      queryClient.invalidateQueries({ queryKey: ['instance-bets'] });
+    });
+
+    return () => {
+      wsClient.unsubscribeFromMatch(params.id!);
+      unsubScore();
+      unsubBall();
+      unsubMarkets();
+      unsubSettlement();
+    };
+  }, [params?.id, queryClient, toast]);
 
   // Fetch match from API if not in store
   const { data: fetchedMatch, isLoading: isLoadingMatch } = useQuery({
@@ -184,8 +243,12 @@ export default function MatchDetail() {
 
   const isCricket = match.sport === 'cricket';
   const mainMarket = match.markets[0];
-  const displayScore = realtimeData?.scoreHome || match.scoreHome;
+  const displayScore = liveScore?.runs !== undefined 
+    ? `${liveScore.runs}/${liveScore.wickets}` 
+    : (realtimeData?.scoreHome || match.scoreHome);
   const displayDetails = realtimeData?.scoreDetails || match.scoreDetails;
+  const currentOver = liveScore?.currentOver ?? realtimeData?.currentOver;
+  const currentBall = liveScore?.currentBall ?? realtimeData?.currentBall;
 
   return (
     <AppShell>
@@ -201,6 +264,11 @@ export default function MatchDetail() {
               {match.status === 'LIVE' && (
                 <Badge variant="destructive" className="animate-pulse">LIVE</Badge>
               )}
+              {wsConnected && (
+                <Badge variant="outline" className="text-green-500 border-green-500">
+                  <Wifi className="h-3 w-3 mr-1" /> Live
+                </Badge>
+              )}
               <span className="text-xs text-muted-foreground uppercase">{match.league}</span>
             </div>
             <h1 className="text-lg font-bold mt-0.5">{match.homeTeam} vs {match.awayTeam}</h1>
@@ -210,25 +278,38 @@ export default function MatchDetail() {
           </Button>
         </div>
 
+        {lastBall && (
+          <Card className="bg-green-500/10 border-green-500/20 animate-pulse">
+            <CardContent className="p-3 text-center">
+              <p className="text-sm font-bold text-green-500">
+                Ball {lastBall.over}.{lastBall.ball}: {lastBall.outcome}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardContent className="p-4">
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
-                <p className="font-bold text-lg">{match.homeTeam}</p>
+                <p className="font-bold text-lg">{liveScore?.battingTeam || match.homeTeam}</p>
                 {displayScore && (
                   <p className="text-2xl font-mono font-bold text-primary">{displayScore}</p>
                 )}
               </div>
               <div className="flex flex-col items-center justify-center">
                 <span className="text-xs text-muted-foreground">VS</span>
-                {realtimeData?.currentOver !== undefined && (
-                  <p className="text-xs text-primary mt-1">Over {realtimeData.currentOver}.{realtimeData.currentBall}</p>
+                {currentOver !== undefined && (
+                  <p className="text-xs text-primary mt-1">Over {currentOver}.{currentBall}</p>
+                )}
+                {liveScore?.runRate && (
+                  <p className="text-xs text-muted-foreground">RR: {liveScore.runRate}</p>
                 )}
               </div>
               <div>
                 <p className="font-bold text-lg">{match.awayTeam}</p>
-                {realtimeData?.scoreAway && (
-                  <p className="text-2xl font-mono font-bold text-primary">{realtimeData.scoreAway}</p>
+                {(liveScore?.scoreAway || realtimeData?.scoreAway) && (
+                  <p className="text-2xl font-mono font-bold text-primary">{liveScore?.scoreAway || realtimeData?.scoreAway}</p>
                 )}
               </div>
             </div>

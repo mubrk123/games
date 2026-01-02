@@ -18,10 +18,11 @@ ProBetX is a full-stack, mobile-first sports betting exchange platform inspired 
 | **Wallet System** | Balance tracking, exposure calculation, transaction history | `shared/schema.ts`, `server/storage.ts` |
 | **Back/Lay Betting** | Traditional exchange-style betting on match outcomes | `server/routes.ts`, `client/src/components/betting/` |
 | **Live Cricket** | Real matches from CricketData.org API with live scores | `server/cricketApi.ts` |
-| **Real-time Updates** | 5-second polling for live match scores | `client/src/pages/match-detail.tsx` |
+| **WebSocket Real-time** | Socket.IO for live scores, ball results, market updates, bet settlements | `server/realtimeHub.ts`, `client/src/lib/websocket.ts` |
+| **Live Match Tracker** | Server-side polling (2s) with change detection, emits WebSocket events | `server/liveMatchTracker.ts` |
 | **Instance Betting** | Next Ball, Next Over, Session markets synced with live over/ball state, 60s expiry | `server/instanceBetting.ts`, `server/instanceSettlementService.ts` |
 | **Market Sync** | Markets open for upcoming balls (next 3 balls, current+next over), close when events pass | `server/instanceBetting.ts` |
-| **Auto-Settlement** | Batch settlement every 4 minutes for all users atomically | `server/settlementService.ts` |
+| **Auto-Settlement** | Automatic settlement when ball results arrive, wallet updates via WebSocket | `server/instanceSettlementService.ts`, `server/liveMatchTracker.ts` |
 | **Withdrawal System** | User requests → Admin approves → Funds transfer (winnings only) | `server/routes.ts`, `server/storage.ts` |
 | **Instance Bet Persistence** | Ball-by-ball bets stored in PostgreSQL with full audit trail | `shared/schema.ts`, `server/storage.ts` |
 | **Manual Settlement** | Admin can manually settle or void bets for any match | `server/routes.ts`, `server/settlementService.ts` |
@@ -41,7 +42,6 @@ ProBetX is a full-stack, mobile-first sports betting exchange platform inspired 
 ### Not Implemented ❌
 
 - Real peer-to-peer order book matching
-- WebSocket push updates (uses polling)
 - Cashout functionality
 - Accumulator/Parlay bets
 - Payment gateway integration
@@ -76,6 +76,7 @@ Node.js + Express + TypeScript
 ├── Passport.js - Session-based authentication
 ├── bcrypt - Password hashing (10 rounds)
 ├── express-session - Session management
+├── Socket.IO - WebSocket real-time updates
 └── esbuild - Server bundling
 ```
 

@@ -1,42 +1,44 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { storage } from "./storage";
-import type { Express } from "express";
+import type { Express, RequestHandler } from "express";
 import session from "express-session";
 import bcrypt from "bcrypt";
 import connectPgSimple from "connect-pg-simple";
 import pg from "pg";
 
-// Session configuration
+let sessionMiddleware: RequestHandler;
+
+export function getSessionMiddleware(): RequestHandler {
+  return sessionMiddleware;
+}
+
 export function setupAuth(app: Express) {
-  // Trust proxy for secure cookies behind reverse proxy
   app.set("trust proxy", 1);
   
-  // Create PostgreSQL session store
   const PgStore = connectPgSimple(session);
   const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
   });
   
-  app.use(
-    session({
-      store: new PgStore({
-        pool,
-        tableName: 'session',
-        createTableIfMissing: true,
-      }),
-      secret: process.env.SESSION_SECRET || "probet-secret-key-change-in-production",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-        httpOnly: true,
-        secure: false, // Allow cookies over HTTP in development
-        sameSite: "lax", // Required for cross-origin requests
-      },
-    })
-  );
+  sessionMiddleware = session({
+    store: new PgStore({
+      pool,
+      tableName: 'session',
+      createTableIfMissing: true,
+    }),
+    secret: process.env.SESSION_SECRET || "probet-secret-key-change-in-production",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    },
+  });
 
+  app.use(sessionMiddleware);
   app.use(passport.initialize());
   app.use(passport.session());
 

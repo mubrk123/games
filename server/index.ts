@@ -4,6 +4,9 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { settlementService } from "./settlementService";
+import { realtimeHub } from "./realtimeHub";
+import { liveMatchTracker } from "./liveMatchTracker";
+import { getSessionMiddleware } from "./auth";
 
 const app = express();
 const httpServer = createServer(app);
@@ -88,12 +91,15 @@ app.use((req, res, next) => {
   httpServer.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
     
-    // Start settlement service (check every 4 minutes = 240000ms)
     settlementService.start(240000);
     
-    // Start instance settlement service for ball-by-ball betting (check every 4 minutes = 240000ms)
-    import("./instanceSettlementService").then(({ instanceSettlementService }) => {
-      instanceSettlementService.start(240000);
-    });
+    setTimeout(() => {
+      const sessionMw = getSessionMiddleware();
+      if (sessionMw) {
+        realtimeHub.initialize(httpServer, sessionMw);
+        liveMatchTracker.start();
+        log("WebSocket and LiveMatchTracker started");
+      }
+    }, 100);
   });
 })();
