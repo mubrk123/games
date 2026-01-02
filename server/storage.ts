@@ -15,7 +15,9 @@ import type {
   Bet,
   CreateBet,
   InsertWalletTransaction,
-  WalletTransaction
+  WalletTransaction,
+  InsertInstanceBet,
+  InstanceBet
 } from "@shared/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -64,6 +66,13 @@ export interface IStorage {
   // Wallet Transaction Operations
   createWalletTransaction(transaction: InsertWalletTransaction): Promise<WalletTransaction>;
   getUserTransactions(userId: string): Promise<WalletTransaction[]>;
+  
+  // Instance Bet Operations
+  createInstanceBet(bet: InsertInstanceBet): Promise<InstanceBet>;
+  getOpenInstanceBets(): Promise<InstanceBet[]>;
+  getOpenInstanceBetsByMarket(marketId: string): Promise<InstanceBet[]>;
+  getUserInstanceBets(userId: string): Promise<InstanceBet[]>;
+  settleInstanceBet(betId: string, status: 'WON' | 'LOST' | 'VOID', winningOutcome: string): Promise<InstanceBet | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -249,6 +258,42 @@ export class DatabaseStorage implements IStorage {
 
   async getUserTransactions(userId: string): Promise<WalletTransaction[]> {
     return await db.select().from(schema.walletTransactions).where(eq(schema.walletTransactions.userId, userId)).orderBy(desc(schema.walletTransactions.createdAt));
+  }
+
+  // Instance Bet Operations
+  async createInstanceBet(bet: InsertInstanceBet): Promise<InstanceBet> {
+    const result = await db.insert(schema.instanceBets).values(bet).returning();
+    return result[0];
+  }
+
+  async getOpenInstanceBets(): Promise<InstanceBet[]> {
+    return await db.select().from(schema.instanceBets).where(eq(schema.instanceBets.status, 'OPEN')).orderBy(desc(schema.instanceBets.createdAt));
+  }
+
+  async getOpenInstanceBetsByMarket(marketId: string): Promise<InstanceBet[]> {
+    return await db.select().from(schema.instanceBets).where(
+      and(
+        eq(schema.instanceBets.marketId, marketId),
+        eq(schema.instanceBets.status, 'OPEN')
+      )
+    ).orderBy(desc(schema.instanceBets.createdAt));
+  }
+
+  async getUserInstanceBets(userId: string): Promise<InstanceBet[]> {
+    return await db.select().from(schema.instanceBets).where(eq(schema.instanceBets.userId, userId)).orderBy(desc(schema.instanceBets.createdAt));
+  }
+
+  async settleInstanceBet(betId: string, status: 'WON' | 'LOST' | 'VOID', winningOutcome: string): Promise<InstanceBet | undefined> {
+    const result = await db
+      .update(schema.instanceBets)
+      .set({ 
+        status,
+        winningOutcome,
+        settledAt: new Date()
+      })
+      .where(eq(schema.instanceBets.id, betId))
+      .returning();
+    return result[0];
   }
 }
 

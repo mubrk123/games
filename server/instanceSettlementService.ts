@@ -1,8 +1,7 @@
-import { storage, db, pool } from "./storage";
-import { eq, and } from "drizzle-orm";
-import * as schema from "@shared/schema";
+import { storage, pool } from "./storage";
 import { cricketApiService } from "./cricketApi";
 import { instanceBettingService, InstanceMarket } from "./instanceBetting";
+import type { InstanceBet } from "@shared/schema";
 
 interface ScoreState {
   matchId: string;
@@ -17,23 +16,10 @@ interface ScoreState {
   timestamp: Date;
 }
 
-interface InstanceBet {
-  betType: 'BACK' | 'LAY';
-  oddsValue: number;
-  oddsName: string;
-  userId: string;
-  outcomeId: string;
-  marketId: string;
-  stake: number;
-  potentialProfit: number;
-  createdAt: Date;
-}
-
 class InstanceSettlementService {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
   private scoreStates: Map<string, ScoreState> = new Map();
-  private instanceBets: Map<string, InstanceBet[]> = new Map();
   private settlementLogs: any[] = [];
 
   async getMatchScoreState(matchId: string): Promise<ScoreState | null> {
@@ -133,19 +119,11 @@ class InstanceSettlementService {
     }
   }
 
-  addInstanceBet(marketId: string, bet: InstanceBet): void {
-    if (!this.instanceBets.has(marketId)) {
-      this.instanceBets.set(marketId, []);
-    }
-    this.instanceBets.get(marketId)!.push(bet);
-    console.log(`[InstanceSettlement] Added bet on market ${marketId}, outcome: ${bet.oddsName}`);
-  }
-
   async settleInstanceMarket(
     market: InstanceMarket,
     winningOutcome: string
   ): Promise<void> {
-    const bets = this.instanceBets.get(market.id) || [];
+    const bets = await storage.getOpenInstanceBetsByMarket(market.id);
     
     if (bets.length === 0) {
       console.log(`[InstanceSettlement] No bets to settle for market ${market.id}`);
@@ -158,11 +136,9 @@ class InstanceSettlementService {
       try {
         await this.processInstanceBetSettlement(bet, winningOutcome);
       } catch (error: any) {
-        console.error(`[InstanceSettlement] Failed to settle bet:`, error.message);
+        console.error(`[InstanceSettlement] Failed to settle bet ${bet.id}:`, error.message);
       }
     }
-
-    this.instanceBets.delete(market.id);
     
     this.settlementLogs.push({
       marketId: market.id,
@@ -197,8 +173,10 @@ class InstanceSettlementService {
 
       const user = userResult.rows[0];
       const currentBalance = parseFloat(user.balance);
+      const stake = parseFloat(bet.stake);
+      const potentialProfit = parseFloat(bet.potentialProfit);
       
-      const betOutcomeNormalized = bet.oddsName.toLowerCase().trim();
+      const betOutcomeNormalized = bet.outcomeName.toLowerCase().trim();
       const winningNormalized = winningOutcome.toLowerCase().trim();
       const didWin = betOutcomeNormalized.includes(winningNormalized) || 
                      winningNormalized.includes(betOutcomeNormalized) ||
@@ -207,45 +185,42 @@ class InstanceSettlementService {
       let payout = 0;
       let description = '';
       let transactionType = '';
+      let betStatus: 'WON' | 'LOST' = 'LOST';
 
-      if (bet.betType === 'BACK') {
-        if (didWin) {
-          payout = bet.stake + bet.potentialProfit;
-          description = `Instance bet won: ${bet.oddsName} - Stake ₹${bet.stake} + Profit ₹${bet.potentialProfit}`;
-          transactionType = 'INSTANCE_BET_WON';
-        } else {
-          payout = 0;
-          description = `Instance bet lost: ${bet.oddsName} - Lost ₹${bet.stake}`;
-          transactionType = 'INSTANCE_BET_LOST';
-        }
+      if (didWin) {
+        payout = stake + potentialProfit;
+        description = `Instance bet won: ${bet.outcomeName} - Stake ₹${stake} + Profit ₹${potentialProfit}`;
+        transactionType = 'INSTANCE_BET_WON';
+        betStatus = 'WON';
       } else {
-        if (didWin) {
-          payout = 0;
-          description = `Instance lay bet lost: ${bet.oddsName} happened - Lost liability`;
-          transactionType = 'INSTANCE_BET_LOST';
-        } else {
-          payout = bet.stake + bet.potentialProfit;
-          description = `Instance lay bet won: ${bet.oddsName} didn't happen - Returned ₹${payout}`;
-          transactionType = 'INSTANCE_BET_WON';
-        }
+        payout = 0;
+        description = `Instance bet lost: ${bet.outcomeName} - Lost ₹${stake}`;
+        transactionType = 'INSTANCE_BET_LOST';
+        betStatus = 'LOST';
       }
 
-      const newBalance = currentBalance + payout;
+      if (payout > 0) {
+        const newBalance = currentBalance + payout;
+        await client.query(
+          'UPDATE users SET balance = $1 WHERE id = $2',
+          [newBalance.toString(), bet.userId]
+        );
+      }
 
       await client.query(
-        'UPDATE users SET balance = $1 WHERE id = $2',
-        [newBalance.toString(), bet.userId]
+        `INSERT INTO wallet_transactions (id, user_id, amount, type, description)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4)`,
+        [bet.userId, payout.toString(), transactionType, description]
       );
 
       await client.query(
-        `INSERT INTO wallet_transactions (user_id, amount, type, description, balance)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [bet.userId, payout.toString(), transactionType, description, newBalance.toString()]
+        `UPDATE instance_bets SET status = $1, winning_outcome = $2, settled_at = NOW() WHERE id = $3`,
+        [betStatus, winningOutcome, bet.id]
       );
 
       await client.query('COMMIT');
 
-      console.log(`[InstanceSettlement] Settled instance bet: ${didWin ? 'WON' : 'LOST'}, payout: ₹${payout}`);
+      console.log(`[InstanceSettlement] Settled instance bet ${bet.id}: ${betStatus}, payout: ₹${payout}`);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -256,19 +231,18 @@ class InstanceSettlementService {
 
   async checkAndSettleLiveMatches(): Promise<void> {
     try {
-      const marketsWithBets = Array.from(this.instanceBets.keys());
-      if (marketsWithBets.length === 0) return;
+      const openBets = await storage.getOpenInstanceBets();
+      if (openBets.length === 0) return;
 
       const matchIds = new Set<string>();
-      marketsWithBets.forEach(marketId => {
-        const bets = this.instanceBets.get(marketId);
-        if (bets && bets.length > 0) {
-          const marketBet = bets[0];
-          const market = instanceBettingService.getAllActiveMarkets().find(m => m.id === marketId);
-          if (market) {
-            matchIds.add(market.matchId);
-          }
+      const marketIdsByMatch = new Map<string, Set<string>>();
+      
+      openBets.forEach(bet => {
+        matchIds.add(bet.matchId);
+        if (!marketIdsByMatch.has(bet.matchId)) {
+          marketIdsByMatch.set(bet.matchId, new Set());
         }
+        marketIdsByMatch.get(bet.matchId)!.add(bet.marketId);
       });
 
       for (const matchId of Array.from(matchIds)) {
@@ -286,14 +260,13 @@ class InstanceSettlementService {
             const winningOutcome = this.determineWinningOutcome(outcome);
             console.log(`[InstanceSettlement] Ball detected! Match ${matchId}: ${winningOutcome}`);
 
-            for (const marketId of marketsWithBets) {
-              const bets = this.instanceBets.get(marketId);
-              if (!bets || bets.length === 0) continue;
-              
-              const allMarkets = instanceBettingService.getAllActiveMarkets();
+            const marketIds = marketIdsByMatch.get(matchId) || new Set();
+            const allMarkets = instanceBettingService.getAllActiveMarkets();
+            
+            for (const marketId of Array.from(marketIds)) {
               const market = allMarkets.find(m => m.id === marketId);
               
-              if (market && market.matchId === matchId && market.instanceType === 'NEXT_BALL') {
+              if (market && market.instanceType === 'NEXT_BALL') {
                 instanceBettingService.closeMarket(marketId);
                 await this.settleInstanceMarket(market, winningOutcome);
               }
@@ -327,10 +300,9 @@ class InstanceSettlementService {
     return this.settlementLogs;
   }
 
-  getActiveInstanceBetsCount(): number {
-    let count = 0;
-    this.instanceBets.forEach(bets => count += bets.length);
-    return count;
+  async getActiveInstanceBetsCount(): Promise<number> {
+    const openBets = await storage.getOpenInstanceBets();
+    return openBets.length;
   }
 
   start(intervalMs: number = 10000): void {

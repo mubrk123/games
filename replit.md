@@ -19,8 +19,9 @@ ProBetX is a full-stack, mobile-first sports betting exchange platform inspired 
 | **Back/Lay Betting** | Traditional exchange-style betting on match outcomes | `server/routes.ts`, `client/src/components/betting/` |
 | **Live Cricket** | Real matches from CricketData.org API with live scores | `server/cricketApi.ts` |
 | **Real-time Updates** | 5-second polling for live match scores | `client/src/pages/match-detail.tsx` |
-| **Instance Betting** | Next Ball, Next Over, Session markets with 30s expiry | `server/instanceBetting.ts` |
+| **Instance Betting** | Next Ball, Next Over, Session markets with 30s expiry, persisted to DB | `server/instanceBetting.ts`, `server/instanceSettlementService.ts` |
 | **Auto-Settlement** | Transaction-safe settlement with Cricket API and Odds API result detection | `server/settlementService.ts` |
+| **Instance Bet Persistence** | Ball-by-ball bets stored in PostgreSQL with full audit trail | `shared/schema.ts`, `server/storage.ts` |
 | **Manual Settlement** | Admin can manually settle or void bets for any match | `server/routes.ts`, `server/settlementService.ts` |
 | **Anti-Exploitation** | 10-second latency guard, 30s market windows, critical moment suspension | `server/routes.ts`, `server/instanceBetting.ts` |
 | **Mobile-First UI** | Bottom nav, touch-friendly components, responsive design | `client/src/components/layout/` |
@@ -31,7 +32,6 @@ ProBetX is a full-stack, mobile-first sports betting exchange platform inspired 
 
 | Feature | Current State | Needed |
 |---------|---------------|--------|
-| Instance Betting | In-memory storage, 30s expiry, auto-settlement added | Persist to DB |
 | Quick Bet Flow | Navigates to detail page | Direct bet placement from cards |
 | Multi-Sport | API integrated | Show non-cricket sports properly |
 | Casino | Page exists | Real games not implemented |
@@ -108,6 +108,12 @@ bets: {
 walletTransactions: {
   id: uuid, oddsType (CREDIT|DEBIT), userId, amount, balance, description, createdAt
 }
+
+instanceBets: {
+  id: uuid, userId, matchId, marketId, marketType (NEXT_BALL|NEXT_OVER|SESSION),
+  marketName, outcomeId, outcomeName, odds, stake, potentialProfit,
+  status (OPEN|WON|LOST|VOID), winningOutcome, createdAt, settledAt
+}
 ```
 
 ### API Endpoints
@@ -133,8 +139,9 @@ GET  /api/cricket/current - Current cricket matches
 
 Instance Betting:
 GET  /api/instance/markets/:matchId - Active instance markets
-POST /api/instance/bets - Place instance bet
+POST /api/instance/bet - Place instance bet
 GET  /api/instance/markets - All active markets
+GET  /api/instance/bets/me - User's instance bet history
 
 Admin:
 GET  /api/admin/users - All users
@@ -181,6 +188,8 @@ probetx/
 │   ├── auth.ts                          # Passport configuration
 │   ├── cricketApi.ts                    # CricketData.org integration
 │   ├── instanceBetting.ts               # Instance market service
+│   ├── instanceSettlementService.ts     # Instance bet settlement
+│   ├── settlementService.ts             # Main match settlement
 │   ├── routes.ts                        # All API routes
 │   ├── storage.ts                       # Database operations
 │   ├── seed.ts                          # Demo data seeding

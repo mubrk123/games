@@ -12,6 +12,8 @@ export const marketStatusEnum = pgEnum('market_status', ['OPEN', 'SUSPENDED', 'C
 export const sportEnum = pgEnum('sport', ['cricket', 'football', 'tennis', 'basketball']);
 export const casinoGameTypeEnum = pgEnum('casino_game_type', ['slots', 'crash', 'dice', 'roulette', 'blackjack', 'andar_bahar', 'teen_patti', 'lucky_7']);
 export const casinoRoundStatusEnum = pgEnum('casino_round_status', ['PENDING', 'ACTIVE', 'COMPLETED']);
+export const instanceBetStatusEnum = pgEnum('instance_bet_status', ['OPEN', 'WON', 'LOST', 'VOID']);
+export const instanceMarketTypeEnum = pgEnum('instance_market_type', ['NEXT_BALL', 'NEXT_OVER', 'SESSION']);
 
 // Session Table (managed by connect-pg-simple, defined here to prevent Drizzle from deleting it)
 export const session = pgTable("session", {
@@ -139,6 +141,25 @@ export const casinoBets = pgTable("casino_bets", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Instance Bets Table (ball-by-ball, over-by-over micro-betting)
+export const instanceBets = pgTable("instance_bets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  matchId: varchar("match_id").notNull(),
+  marketId: varchar("market_id").notNull(),
+  marketType: instanceMarketTypeEnum("market_type").notNull(),
+  marketName: text("market_name").notNull(),
+  outcomeId: varchar("outcome_id").notNull(),
+  outcomeName: text("outcome_name").notNull(),
+  odds: decimal("odds", { precision: 10, scale: 2 }).notNull(),
+  stake: decimal("stake", { precision: 10, scale: 2 }).notNull(),
+  potentialProfit: decimal("potential_profit", { precision: 10, scale: 2 }).notNull(),
+  status: instanceBetStatusEnum("status").notNull().default('OPEN'),
+  winningOutcome: text("winning_outcome"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  settledAt: timestamp("settled_at"),
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -200,6 +221,12 @@ export const insertCasinoBetSchema = createInsertSchema(casinoBets).omit({
   createdAt: true,
 });
 
+export const insertInstanceBetSchema = createInsertSchema(instanceBets).omit({
+  id: true,
+  createdAt: true,
+  settledAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -228,3 +255,6 @@ export type CasinoRound = typeof casinoRounds.$inferSelect;
 
 export type InsertCasinoBet = z.infer<typeof insertCasinoBetSchema>;
 export type CasinoBet = typeof casinoBets.$inferSelect;
+
+export type InsertInstanceBet = z.infer<typeof insertInstanceBetSchema>;
+export type InstanceBet = typeof instanceBets.$inferSelect;

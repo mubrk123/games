@@ -882,6 +882,17 @@ export async function registerRoutes(
     }
   });
 
+  // Get user's instance bet history
+  app.get("/api/instance/bets/me", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const bets = await storage.getUserInstanceBets(userId);
+      res.json({ bets });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Place an instance bet
   app.post("/api/instance/bet", requireAuth, async (req, res) => {
     try {
@@ -934,15 +945,21 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Outcome not found" });
       }
 
+      const validMarketTypes = ['NEXT_BALL', 'NEXT_OVER', 'SESSION'] as const;
+      const marketType = validMarketTypes.includes(market.instanceType as any) 
+        ? market.instanceType as 'NEXT_BALL' | 'NEXT_OVER' | 'SESSION'
+        : 'NEXT_BALL';
+
       const potentialProfit = stakeNum * (outcome.odds - 1);
 
-      const bet = await storage.createBet({
+      const instanceBet = await storage.createInstanceBet({
         userId,
         matchId: market.matchId,
         marketId: market.id,
-        runnerId: outcome.id,
-        runnerName: outcome.name,
-        type: 'BACK',
+        marketType,
+        marketName: market.name,
+        outcomeId: outcome.id,
+        outcomeName: outcome.name,
         odds: outcome.odds.toString(),
         stake: stake,
         potentialProfit: potentialProfit.toString(),
@@ -958,21 +975,8 @@ export async function registerRoutes(
         description: `Instance bet: ${market.name} - ${outcome.name}`,
       });
 
-      const { instanceSettlementService } = await import("./instanceSettlementService");
-      instanceSettlementService.addInstanceBet(market.id, {
-        betType: 'BACK',
-        oddsValue: outcome.odds,
-        oddsName: outcome.name,
-        userId,
-        outcomeId: outcome.id,
-        marketId: market.id,
-        stake: stakeNum,
-        potentialProfit,
-        createdAt: new Date(),
-      });
-
       res.json({ 
-        bet,
+        bet: instanceBet,
         message: `Bet placed on ${outcome.name} @ ${outcome.odds}`,
         market: market.name,
       });
