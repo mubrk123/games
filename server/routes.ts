@@ -828,6 +828,183 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Withdrawal Routes
+  // ============================================
+
+  // Get user's withdrawable amount (only winnings)
+  app.get("/api/withdrawals/available", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const winnings = await storage.getUserWinnings(userId);
+      const user = await storage.getUser(userId);
+      const balance = user ? parseFloat(user.balance) : 0;
+      res.json({ 
+        availableWinnings: winnings,
+        currentBalance: balance,
+        maxWithdrawable: Math.min(winnings, balance)
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Request a withdrawal (User)
+  app.post("/api/withdrawals/request", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!user.createdById) {
+        return res.status(400).json({ error: "No admin assigned to your account. Please contact support." });
+      }
+
+      const { amount } = req.body;
+      const amountNum = parseFloat(amount);
+
+      if (!amount || isNaN(amountNum) || amountNum <= 0) {
+        return res.status(400).json({ error: "Invalid withdrawal amount" });
+      }
+
+      const currentBalance = parseFloat(user.balance);
+      if (amountNum > currentBalance) {
+        return res.status(400).json({ error: "Insufficient balance" });
+      }
+
+      const winnings = await storage.getUserWinnings(userId);
+      if (amountNum > winnings) {
+        return res.status(400).json({ 
+          error: "You can only withdraw your winnings",
+          availableWinnings: winnings
+        });
+      }
+
+      const request = await storage.createWithdrawalRequest({
+        userId,
+        adminId: user.createdById,
+        amount: amountNum.toFixed(2),
+        status: 'REQUESTED'
+      });
+
+      res.json({ request, message: "Withdrawal request submitted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get user's withdrawal requests
+  app.get("/api/withdrawals/me", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const requests = await storage.getUserWithdrawalRequests(userId);
+      res.json({ requests });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get pending withdrawal requests for admin
+  app.get("/api/admin/withdrawals/pending", requireAdmin, async (req, res) => {
+    try {
+      const adminId = (req.user as any).id;
+      const requests = await storage.getPendingWithdrawalRequests(adminId);
+      
+      const requestsWithUsers = await Promise.all(
+        requests.map(async (request) => {
+          const user = await storage.getUser(request.userId);
+          return {
+            ...request,
+            user: user ? { id: user.id, username: user.username, balance: user.balance } : null
+          };
+        })
+      );
+
+      res.json({ requests: requestsWithUsers });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all withdrawal requests for admin
+  app.get("/api/admin/withdrawals", requireAdmin, async (req, res) => {
+    try {
+      const adminId = (req.user as any).id;
+      const requests = await storage.getAdminWithdrawalRequests(adminId);
+      
+      const requestsWithUsers = await Promise.all(
+        requests.map(async (request) => {
+          const user = await storage.getUser(request.userId);
+          return {
+            ...request,
+            user: user ? { id: user.id, username: user.username, balance: user.balance } : null
+          };
+        })
+      );
+
+      res.json({ requests: requestsWithUsers });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Approve withdrawal request (Admin)
+  app.post("/api/admin/withdrawals/:id/approve", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const adminId = (req.user as any).id;
+
+      const requests = await storage.getAdminWithdrawalRequests(adminId);
+      const request = requests.find(r => r.id === id);
+
+      if (!request) {
+        return res.status(404).json({ error: "Withdrawal request not found or not assigned to you" });
+      }
+
+      if (request.status !== 'REQUESTED') {
+        return res.status(400).json({ error: "Request already processed" });
+      }
+
+      const result = await storage.approveWithdrawalRequest(id);
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      res.json({ success: true, message: "Withdrawal approved and funds transferred" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Reject withdrawal request (Admin)
+  app.post("/api/admin/withdrawals/:id/reject", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { notes } = req.body;
+      const adminId = (req.user as any).id;
+
+      const requests = await storage.getAdminWithdrawalRequests(adminId);
+      const request = requests.find(r => r.id === id);
+
+      if (!request) {
+        return res.status(404).json({ error: "Withdrawal request not found or not assigned to you" });
+      }
+
+      if (request.status !== 'REQUESTED') {
+        return res.status(400).json({ error: "Request already processed" });
+      }
+
+      const updated = await storage.rejectWithdrawalRequest(id, notes);
+      res.json({ request: updated, message: "Withdrawal request rejected" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
   // Instance Betting Routes
   // ============================================
 

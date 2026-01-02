@@ -1,5 +1,5 @@
 // Instance-Based Betting System
-// Creates micro-markets for specific in-game events like next ball, next over, next goal
+// Creates micro-markets synced with live cricket overs/balls
 
 export type InstanceType = 
   | 'NEXT_BALL'
@@ -20,6 +20,8 @@ export interface InstanceMarket {
   closeTime: Date;
   status: 'PENDING' | 'OPEN' | 'SUSPENDED' | 'CLOSED' | 'SETTLED';
   eventReference: string;
+  overNumber: number;
+  ballNumber: number;
   outcomes: InstanceOutcome[];
 }
 
@@ -29,6 +31,15 @@ export interface InstanceOutcome {
   name: string;
   odds: number;
   probability: number;
+}
+
+export interface MatchState {
+  matchId: string;
+  currentOver: number;
+  currentBall: number;
+  lastUpdated: Date;
+  totalOvers: number;
+  isInningsBreak: boolean;
 }
 
 const CRICKET_BALL_OUTCOMES: { name: string; baseOdds: number }[] = [
@@ -61,25 +72,74 @@ const FOOTBALL_NEXT_GOAL_OUTCOMES: { name: string; baseOdds: number }[] = [
 
 class InstanceBettingService {
   private activeMarkets: Map<string, InstanceMarket> = new Map();
+  private matchStates: Map<string, MatchState> = new Map();
   private marketCounter = 0;
-  private lastGeneratedForMatch: Map<string, number> = new Map();
 
   generateMarketId(): string {
     this.marketCounter++;
     return `inst-${Date.now()}-${this.marketCounter}`;
   }
 
-  private shouldGenerateNewMarkets(matchId: string): boolean {
-    const lastGenerated = this.lastGeneratedForMatch.get(matchId);
-    if (!lastGenerated) return true;
-    const activeForMatch = this.getActiveMarketsForMatch(matchId);
-    if (activeForMatch.length === 0) return true;
-    return false;
+  updateMatchState(matchId: string, currentOver: number, currentBall: number, totalOvers: number = 20): MatchState {
+    const state: MatchState = {
+      matchId,
+      currentOver,
+      currentBall,
+      lastUpdated: new Date(),
+      totalOvers,
+      isInningsBreak: false
+    };
+    this.matchStates.set(matchId, state);
+    
+    this.closeMarketsForPastEvents(matchId, currentOver, currentBall);
+    
+    return state;
+  }
+
+  getMatchState(matchId: string): MatchState | undefined {
+    return this.matchStates.get(matchId);
+  }
+
+  closeMarketsForPastEvents(matchId: string, currentOver: number, currentBall: number): string[] {
+    const closedMarkets: string[] = [];
+    
+    this.activeMarkets.forEach((market, marketId) => {
+      if (market.matchId !== matchId || market.status !== 'OPEN') return;
+      
+      if (market.instanceType === 'NEXT_BALL') {
+        const marketOver = market.overNumber;
+        const marketBall = market.ballNumber;
+        
+        const currentTotal = currentOver * 6 + currentBall;
+        const marketTotal = marketOver * 6 + marketBall;
+        
+        if (marketTotal <= currentTotal) {
+          market.status = 'CLOSED';
+          closedMarkets.push(marketId);
+          console.log(`[InstanceBetting] Closed ball market ${marketId} for ${marketOver}.${marketBall} (current: ${currentOver}.${currentBall})`);
+        }
+      }
+      
+      if (market.instanceType === 'CURRENT_OVER') {
+        if (market.overNumber < currentOver) {
+          market.status = 'CLOSED';
+          closedMarkets.push(marketId);
+          console.log(`[InstanceBetting] Closed over market ${marketId} for over ${market.overNumber} (current: ${currentOver})`);
+        }
+      }
+    });
+    
+    return closedMarkets;
   }
 
   createCricketBallMarket(matchId: string, overNumber: number, ballNumber: number): InstanceMarket {
+    const existingMarket = this.findExistingBallMarket(matchId, overNumber, ballNumber);
+    if (existingMarket) {
+      return existingMarket;
+    }
+
     const now = new Date();
-    const closeTime = new Date(now.getTime() + 30000); // 30 seconds to prevent exploitation
+    const closeTime = new Date(now.getTime() + 60000);
 
     const market: InstanceMarket = {
       id: this.generateMarketId(),
@@ -91,6 +151,8 @@ class InstanceBettingService {
       closeTime,
       status: 'OPEN',
       eventReference: `${overNumber}.${ballNumber}`,
+      overNumber,
+      ballNumber,
       outcomes: CRICKET_BALL_OUTCOMES.map((outcome, idx) => ({
         id: `${this.generateMarketId()}-${idx}`,
         marketId: '',
@@ -105,9 +167,28 @@ class InstanceBettingService {
     return market;
   }
 
+  private findExistingBallMarket(matchId: string, overNumber: number, ballNumber: number): InstanceMarket | null {
+    const markets = Array.from(this.activeMarkets.values());
+    for (const market of markets) {
+      if (market.matchId === matchId && 
+          market.instanceType === 'NEXT_BALL' &&
+          market.overNumber === overNumber &&
+          market.ballNumber === ballNumber &&
+          market.status === 'OPEN') {
+        return market;
+      }
+    }
+    return null;
+  }
+
   createCricketOverMarket(matchId: string, overNumber: number): InstanceMarket {
+    const existingMarket = this.findExistingOverMarket(matchId, overNumber);
+    if (existingMarket) {
+      return existingMarket;
+    }
+
     const now = new Date();
-    const closeTime = new Date(now.getTime() + 30000); // 30 seconds to prevent exploitation
+    const closeTime = new Date(now.getTime() + 60000);
 
     const market: InstanceMarket = {
       id: this.generateMarketId(),
@@ -119,6 +200,8 @@ class InstanceBettingService {
       closeTime,
       status: 'OPEN',
       eventReference: `over-${overNumber}`,
+      overNumber,
+      ballNumber: 0,
       outcomes: CRICKET_OVER_OUTCOMES.map((outcome, idx) => ({
         id: `${this.generateMarketId()}-${idx}`,
         marketId: '',
@@ -133,9 +216,22 @@ class InstanceBettingService {
     return market;
   }
 
+  private findExistingOverMarket(matchId: string, overNumber: number): InstanceMarket | null {
+    const markets = Array.from(this.activeMarkets.values());
+    for (const market of markets) {
+      if (market.matchId === matchId && 
+          market.instanceType === 'CURRENT_OVER' &&
+          market.overNumber === overNumber &&
+          market.status === 'OPEN') {
+        return market;
+      }
+    }
+    return null;
+  }
+
   createFootballNextGoalMarket(matchId: string, homeTeam: string, awayTeam: string): InstanceMarket {
     const now = new Date();
-    const closeTime = new Date(now.getTime() + 30000); // 30 seconds to prevent exploitation
+    const closeTime = new Date(now.getTime() + 60000);
 
     const outcomes = [
       { name: homeTeam, baseOdds: 2.20 },
@@ -153,6 +249,8 @@ class InstanceBettingService {
       closeTime,
       status: 'OPEN',
       eventReference: 'next-goal',
+      overNumber: 0,
+      ballNumber: 0,
       outcomes: outcomes.map((outcome, idx) => ({
         id: `${this.generateMarketId()}-${idx}`,
         marketId: '',
@@ -190,6 +288,8 @@ class InstanceBettingService {
       closeTime,
       status: 'OPEN',
       eventReference: sessionType,
+      overNumber: 0,
+      ballNumber: 0,
       outcomes: sessionOutcomes.map((outcome, idx) => ({
         id: `${this.generateMarketId()}-${idx}`,
         marketId: '',
@@ -202,6 +302,59 @@ class InstanceBettingService {
     market.outcomes.forEach(o => o.marketId = market.id);
     this.activeMarkets.set(market.id, market);
     return market;
+  }
+
+  generateSyncedMarkets(matchId: string, currentOver: number, currentBall: number): InstanceMarket[] {
+    this.updateMatchState(matchId, currentOver, currentBall);
+    
+    const markets: InstanceMarket[] = [];
+    
+    let nextBall = currentBall + 1;
+    let nextOver = currentOver;
+    
+    if (nextBall > 6) {
+      nextBall = 1;
+      nextOver = currentOver + 1;
+    }
+    
+    for (let i = 0; i < 3; i++) {
+      let ballNum = nextBall + i;
+      let overNum = nextOver;
+      
+      while (ballNum > 6) {
+        ballNum -= 6;
+        overNum += 1;
+      }
+      
+      if (overNum <= 50) {
+        markets.push(this.createCricketBallMarket(matchId, overNum, ballNum));
+      }
+    }
+    
+    markets.push(this.createCricketOverMarket(matchId, nextOver));
+    
+    if (nextOver + 1 <= 50) {
+      markets.push(this.createCricketOverMarket(matchId, nextOver + 1));
+    }
+    
+    let sessionType = 'Powerplay';
+    if (currentOver >= 6 && currentOver < 15) {
+      sessionType = 'Middle Overs';
+    } else if (currentOver >= 15) {
+      sessionType = 'Death Overs';
+    }
+    
+    const existingSession = Array.from(this.activeMarkets.values()).find(
+      m => m.matchId === matchId && m.instanceType === 'SESSION' && m.status === 'OPEN'
+    );
+    
+    if (!existingSession) {
+      markets.push(this.createSessionMarkets(matchId, sessionType));
+    } else {
+      markets.push(existingSession);
+    }
+    
+    return markets;
   }
 
   getActiveMarketsForMatch(matchId: string): InstanceMarket[] {
@@ -322,28 +475,22 @@ class InstanceBettingService {
   }
 
   generateLiveInstanceMarkets(matchId: string, sport: string, homeTeam?: string, awayTeam?: string, currentOver?: number, currentBall?: number): InstanceMarket[] {
-    if (!this.shouldGenerateNewMarkets(matchId)) {
-      return this.getActiveMarketsForMatch(matchId);
-    }
-
-    this.lastGeneratedForMatch.set(matchId, Date.now());
-
-    const markets: InstanceMarket[] = [];
-
+    this.checkAndCloseExpiredMarkets();
+    
     if (sport === 'cricket') {
       const over = currentOver ?? Math.floor(Math.random() * 15) + 5;
       const ball = currentBall ?? Math.floor(Math.random() * 6) + 1;
-
-      markets.push(this.createCricketBallMarket(matchId, over, ball));
-      markets.push(this.createCricketOverMarket(matchId, over));
-      markets.push(this.createSessionMarkets(matchId, 'Powerplay'));
+      
+      return this.generateSyncedMarkets(matchId, over, ball);
     } else if (sport === 'football' || sport === 'soccer') {
+      const markets: InstanceMarket[] = [];
       if (homeTeam && awayTeam) {
         markets.push(this.createFootballNextGoalMarket(matchId, homeTeam, awayTeam));
       }
+      return markets;
     }
-
-    return markets;
+    
+    return [];
   }
 
   clearExpiredMarketsForMatch(matchId: string): void {
@@ -351,15 +498,33 @@ class InstanceBettingService {
     const keysToRemove: string[] = [];
     
     this.activeMarkets.forEach((market, key) => {
-      if (market.matchId === matchId && new Date(market.closeTime).getTime() <= now) {
+      if (market.matchId === matchId && 
+          (market.status === 'CLOSED' || market.status === 'SETTLED' || new Date(market.closeTime).getTime() <= now)) {
         keysToRemove.push(key);
       }
     });
     
     keysToRemove.forEach(key => this.activeMarkets.delete(key));
-    
-    if (keysToRemove.length > 0) {
-      this.lastGeneratedForMatch.delete(matchId);
+  }
+
+  getMarketById(marketId: string): InstanceMarket | undefined {
+    return this.activeMarkets.get(marketId);
+  }
+
+  getClosedMarketsForSettlement(): InstanceMarket[] {
+    const closed: InstanceMarket[] = [];
+    this.activeMarkets.forEach(market => {
+      if (market.status === 'CLOSED') {
+        closed.push(market);
+      }
+    });
+    return closed;
+  }
+
+  markMarketAsSettled(marketId: string): void {
+    const market = this.activeMarkets.get(marketId);
+    if (market) {
+      market.status = 'SETTLED';
     }
   }
 }

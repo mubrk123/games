@@ -17,7 +17,9 @@ import type {
   InsertWalletTransaction,
   WalletTransaction,
   InsertInstanceBet,
-  InstanceBet
+  InstanceBet,
+  InsertWithdrawalRequest,
+  WithdrawalRequest
 } from "@shared/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -73,6 +75,15 @@ export interface IStorage {
   getOpenInstanceBetsByMarket(marketId: string): Promise<InstanceBet[]>;
   getUserInstanceBets(userId: string): Promise<InstanceBet[]>;
   settleInstanceBet(betId: string, status: 'WON' | 'LOST' | 'VOID', winningOutcome: string): Promise<InstanceBet | undefined>;
+  
+  // Withdrawal Request Operations
+  createWithdrawalRequest(request: InsertWithdrawalRequest): Promise<WithdrawalRequest>;
+  getUserWithdrawalRequests(userId: string): Promise<WithdrawalRequest[]>;
+  getAdminWithdrawalRequests(adminId: string): Promise<WithdrawalRequest[]>;
+  getPendingWithdrawalRequests(adminId: string): Promise<WithdrawalRequest[]>;
+  approveWithdrawalRequest(requestId: string): Promise<{ success: boolean; error?: string }>;
+  rejectWithdrawalRequest(requestId: string, notes?: string): Promise<WithdrawalRequest | undefined>;
+  getUserWinnings(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -294,6 +305,151 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.instanceBets.id, betId))
       .returning();
     return result[0];
+  }
+
+  // Withdrawal Request Operations
+  async createWithdrawalRequest(request: InsertWithdrawalRequest): Promise<WithdrawalRequest> {
+    const result = await db.insert(schema.withdrawalRequests).values(request).returning();
+    return result[0];
+  }
+
+  async getUserWithdrawalRequests(userId: string): Promise<WithdrawalRequest[]> {
+    return await db.select().from(schema.withdrawalRequests)
+      .where(eq(schema.withdrawalRequests.userId, userId))
+      .orderBy(desc(schema.withdrawalRequests.createdAt));
+  }
+
+  async getAdminWithdrawalRequests(adminId: string): Promise<WithdrawalRequest[]> {
+    return await db.select().from(schema.withdrawalRequests)
+      .where(eq(schema.withdrawalRequests.adminId, adminId))
+      .orderBy(desc(schema.withdrawalRequests.createdAt));
+  }
+
+  async getPendingWithdrawalRequests(adminId: string): Promise<WithdrawalRequest[]> {
+    return await db.select().from(schema.withdrawalRequests)
+      .where(and(
+        eq(schema.withdrawalRequests.adminId, adminId),
+        eq(schema.withdrawalRequests.status, 'REQUESTED')
+      ))
+      .orderBy(desc(schema.withdrawalRequests.createdAt));
+  }
+
+  async approveWithdrawalRequest(requestId: string): Promise<{ success: boolean; error?: string }> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const requestResult = await client.query(
+        'SELECT id, user_id, admin_id, amount, status FROM withdrawal_requests WHERE id = $1 FOR UPDATE',
+        [requestId]
+      );
+
+      if (requestResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'Withdrawal request not found' };
+      }
+
+      const request = requestResult.rows[0];
+      if (request.status !== 'REQUESTED') {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'Request already processed' };
+      }
+
+      const amount = parseFloat(request.amount);
+
+      const userResult = await client.query(
+        'SELECT id, balance FROM users WHERE id = $1 FOR UPDATE',
+        [request.user_id]
+      );
+      const adminResult = await client.query(
+        'SELECT id, balance FROM users WHERE id = $1 FOR UPDATE',
+        [request.admin_id]
+      );
+
+      if (userResult.rows.length === 0 || adminResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'User or admin not found' };
+      }
+
+      const userBalance = parseFloat(userResult.rows[0].balance);
+      const adminBalance = parseFloat(adminResult.rows[0].balance);
+
+      if (userBalance < amount) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'User has insufficient balance' };
+      }
+
+      const newUserBalance = (userBalance - amount).toFixed(2);
+      const newAdminBalance = (adminBalance + amount).toFixed(2);
+
+      await client.query('UPDATE users SET balance = $1 WHERE id = $2', [newUserBalance, request.user_id]);
+      await client.query('UPDATE users SET balance = $1 WHERE id = $2', [newAdminBalance, request.admin_id]);
+
+      await client.query(
+        'INSERT INTO wallet_transactions (id, user_id, amount, type, description, source_user_id) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)',
+        [request.user_id, (-amount).toFixed(2), 'WITHDRAWAL', `Withdrawal approved by admin`, request.admin_id]
+      );
+      await client.query(
+        'INSERT INTO wallet_transactions (id, user_id, amount, type, description, source_user_id) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)',
+        [request.admin_id, amount.toFixed(2), 'WITHDRAWAL_RECEIVED', `Withdrawal from user`, request.user_id]
+      );
+
+      await client.query(
+        'UPDATE withdrawal_requests SET status = $1, resolved_at = NOW() WHERE id = $2',
+        ['APPROVED', requestId]
+      );
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      return { success: false, error: error.message };
+    } finally {
+      client.release();
+    }
+  }
+
+  async rejectWithdrawalRequest(requestId: string, notes?: string): Promise<WithdrawalRequest | undefined> {
+    const result = await db
+      .update(schema.withdrawalRequests)
+      .set({ 
+        status: 'REJECTED',
+        notes: notes || 'Request rejected by admin',
+        resolvedAt: new Date()
+      })
+      .where(eq(schema.withdrawalRequests.id, requestId))
+      .returning();
+    return result[0];
+  }
+
+  async getUserWinnings(userId: string): Promise<number> {
+    const transactions = await db.select().from(schema.walletTransactions)
+      .where(and(
+        eq(schema.walletTransactions.userId, userId),
+        or(
+          eq(schema.walletTransactions.type, 'BET_WON'),
+          eq(schema.walletTransactions.type, 'CASINO_WIN'),
+          eq(schema.walletTransactions.type, 'INSTANCE_BET_WON')
+        )
+      ));
+    
+    let totalWinnings = 0;
+    for (const tx of transactions) {
+      totalWinnings += parseFloat(tx.amount);
+    }
+
+    const withdrawalRequests = await db.select().from(schema.withdrawalRequests)
+      .where(and(
+        eq(schema.withdrawalRequests.userId, userId),
+        eq(schema.withdrawalRequests.status, 'APPROVED')
+      ));
+    
+    let totalWithdrawn = 0;
+    for (const req of withdrawalRequests) {
+      totalWithdrawn += parseFloat(req.amount);
+    }
+
+    return Math.max(0, totalWinnings - totalWithdrawn);
   }
 }
 
