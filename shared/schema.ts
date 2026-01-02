@@ -14,6 +14,7 @@ export const casinoGameTypeEnum = pgEnum('casino_game_type', ['slots', 'crash', 
 export const casinoRoundStatusEnum = pgEnum('casino_round_status', ['PENDING', 'ACTIVE', 'COMPLETED']);
 export const instanceBetStatusEnum = pgEnum('instance_bet_status', ['OPEN', 'WON', 'LOST', 'VOID']);
 export const instanceMarketTypeEnum = pgEnum('instance_market_type', ['NEXT_BALL', 'NEXT_OVER', 'SESSION']);
+export const withdrawalStatusEnum = pgEnum('withdrawal_status', ['REQUESTED', 'APPROVED', 'REJECTED']);
 
 // Session Table (managed by connect-pg-simple, defined here to prevent Drizzle from deleting it)
 export const session = pgTable("session", {
@@ -160,6 +161,18 @@ export const instanceBets = pgTable("instance_bets", {
   settledAt: timestamp("settled_at"),
 });
 
+// Withdrawal Requests Table
+export const withdrawalRequests = pgTable("withdrawal_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  adminId: varchar("admin_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  status: withdrawalStatusEnum("status").notNull().default('REQUESTED'),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -227,6 +240,12 @@ export const insertInstanceBetSchema = createInsertSchema(instanceBets).omit({
   settledAt: true,
 });
 
+export const insertWithdrawalRequestSchema = createInsertSchema(withdrawalRequests).omit({
+  id: true,
+  createdAt: true,
+  resolvedAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -258,3 +277,6 @@ export type CasinoBet = typeof casinoBets.$inferSelect;
 
 export type InsertInstanceBet = z.infer<typeof insertInstanceBetSchema>;
 export type InstanceBet = typeof instanceBets.$inferSelect;
+
+export type InsertWithdrawalRequest = z.infer<typeof insertWithdrawalRequestSchema>;
+export type WithdrawalRequest = typeof withdrawalRequests.$inferSelect;
