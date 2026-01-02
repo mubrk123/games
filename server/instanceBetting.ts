@@ -183,7 +183,7 @@ class InstanceBettingService {
     }
 
     const now = new Date();
-    const closeTime = new Date(now.getTime() + 120000);
+    const closeTime = new Date(now.getTime() + 300000);
 
     const market: InstanceMarket = {
       id: this.generateMarketId(),

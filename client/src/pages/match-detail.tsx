@@ -161,8 +161,8 @@ export default function MatchDetail() {
       if (!params?.id || !match) return { markets: [] };
       return api.getInstanceMarkets(params.id, match.sport, match.homeTeam, match.awayTeam);
     },
-    refetchInterval: 20000,
-    staleTime: 15000,
+    refetchInterval: 3000,
+    staleTime: 2000,
     enabled: !!params?.id && !!match && match.status === 'LIVE',
   });
 
