@@ -4,41 +4,40 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Rocket, TrendingUp, Shield, Zap } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-const QUICK_BETS = [10, 50, 100, 500, 1000];
+const QUICK_STAKES = [10, 50, 100, 500, 1000];
 const QUICK_MULTIPLIERS = [1.5, 2, 3, 5, 10];
 
-type GamePhase = "betting" | "flying" | "crashed" | "cashedOut";
+type GamePhase = "waiting" | "flying" | "crashed" | "cashedOut";
 
 export default function CrashGame() {
-  const [betAmount, setBetAmount] = useState('100');
-  const [selectedBetIndex, setSelectedBetIndex] = useState<number | null>(null);
+  const [stakeAmount, setStakeAmount] = useState('100');
+  const [selectedStakeIndex, setSelectedStakeIndex] = useState<number | null>(null);
   const [cashoutMultiplier, setCashoutMultiplier] = useState('2.00');
   const [selectedMultIndex, setSelectedMultIndex] = useState<number | null>(null);
-  const [gamePhase, setGamePhase] = useState<GamePhase>("betting");
+  const [gamePhase, setGamePhase] = useState<GamePhase>("waiting");
   const [currentMultiplier, setCurrentMultiplier] = useState(1.00);
   const [crashPoint, setCrashPoint] = useState<number | null>(null);
   const [payout, setPayout] = useState<number>(0);
-  const [rocketPosition, setRocketPosition] = useState({ x: 50, y: 100 });
-  const [multiplierHistory, setMultiplierHistory] = useState<number[]>([1]);
+  const [rocketY, setRocketY] = useState(100);
   
   const animationRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const targetCrashRef = useRef<number>(0);
   const hasCashedOutRef = useRef<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const historyRef = useRef<number[]>([1]);
   
   const { currentUser, setCurrentUser } = useStore();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const drawGraph = useCallback(() => {
+  const drawGraph = useCallback((history: number[], phase: GamePhase) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
@@ -60,15 +59,15 @@ export default function CrashGame() {
       ctx.stroke();
     }
     
-    if (multiplierHistory.length < 2) return;
+    if (history.length < 2) return;
     
-    const maxMult = Math.max(...multiplierHistory, 2);
+    const maxMult = Math.max(...history, 2);
     const gradient = ctx.createLinearGradient(0, height, 0, 0);
     
-    if (gamePhase === "crashed") {
+    if (phase === "crashed") {
       gradient.addColorStop(0, 'rgba(239, 68, 68, 0.3)');
       gradient.addColorStop(1, 'rgba(239, 68, 68, 0.8)');
-    } else if (gamePhase === "cashedOut") {
+    } else if (phase === "cashedOut") {
       gradient.addColorStop(0, 'rgba(34, 197, 94, 0.3)');
       gradient.addColorStop(1, 'rgba(34, 197, 94, 0.8)');
     } else {
@@ -79,14 +78,10 @@ export default function CrashGame() {
     ctx.beginPath();
     ctx.moveTo(0, height);
     
-    multiplierHistory.forEach((mult, i) => {
-      const x = (i / (multiplierHistory.length - 1)) * width;
-      const y = height - ((mult - 1) / (maxMult - 1)) * height * 0.9;
-      if (i === 0) {
-        ctx.lineTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
+    history.forEach((mult, i) => {
+      const x = (i / Math.max(history.length - 1, 1)) * width;
+      const y = height - ((mult - 1) / Math.max(maxMult - 1, 1)) * height * 0.85;
+      ctx.lineTo(x, Math.max(y, 10));
     });
     
     ctx.lineTo(width, height);
@@ -95,19 +90,19 @@ export default function CrashGame() {
     ctx.fill();
     
     ctx.beginPath();
-    multiplierHistory.forEach((mult, i) => {
-      const x = (i / (multiplierHistory.length - 1)) * width;
-      const y = height - ((mult - 1) / (maxMult - 1)) * height * 0.9;
+    history.forEach((mult, i) => {
+      const x = (i / Math.max(history.length - 1, 1)) * width;
+      const y = height - ((mult - 1) / Math.max(maxMult - 1, 1)) * height * 0.85;
       if (i === 0) {
-        ctx.moveTo(x, y);
+        ctx.moveTo(x, Math.max(y, 10));
       } else {
-        ctx.lineTo(x, y);
+        ctx.lineTo(x, Math.max(y, 10));
       }
     });
     
-    if (gamePhase === "crashed") {
+    if (phase === "crashed") {
       ctx.strokeStyle = '#ef4444';
-    } else if (gamePhase === "cashedOut") {
+    } else if (phase === "cashedOut") {
       ctx.strokeStyle = '#22c55e';
     } else {
       ctx.strokeStyle = '#fbbf24';
@@ -115,52 +110,11 @@ export default function CrashGame() {
     ctx.lineWidth = 3;
     ctx.stroke();
     
-    if (multiplierHistory.length > 1) {
-      const lastMult = multiplierHistory[multiplierHistory.length - 1];
-      const lastX = width;
-      const lastY = height - ((lastMult - 1) / (maxMult - 1)) * height * 0.9;
-      
-      setRocketPosition({ x: (lastX / width) * 100, y: (lastY / height) * 100 });
+    if (history.length > 1) {
+      const lastMult = history[history.length - 1];
+      const lastY = height - ((lastMult - 1) / Math.max(maxMult - 1, 1)) * height * 0.85;
+      setRocketY(Math.max((lastY / height) * 100, 5));
     }
-  }, [multiplierHistory, gamePhase]);
-
-  useEffect(() => {
-    drawGraph();
-  }, [drawGraph]);
-
-  const startGame = useCallback((targetCrash: number) => {
-    targetCrashRef.current = targetCrash;
-    hasCashedOutRef.current = false;
-    startTimeRef.current = Date.now();
-    setGamePhase("flying");
-    setCurrentMultiplier(1.00);
-    setMultiplierHistory([1]);
-    setCrashPoint(null);
-    setPayout(0);
-    
-    const animate = () => {
-      const elapsed = (Date.now() - startTimeRef.current) / 1000;
-      const mult = Math.pow(1.05, elapsed * 10);
-      const roundedMult = Math.round(mult * 100) / 100;
-      
-      setCurrentMultiplier(roundedMult);
-      setMultiplierHistory(prev => [...prev.slice(-100), roundedMult]);
-      
-      if (roundedMult >= targetCrashRef.current && !hasCashedOutRef.current) {
-        setGamePhase("crashed");
-        setCrashPoint(targetCrashRef.current);
-        animationRef.current = null;
-        return;
-      }
-      
-      if (hasCashedOutRef.current) {
-        return;
-      }
-      
-      animationRef.current = requestAnimationFrame(animate);
-    };
-    
-    animationRef.current = requestAnimationFrame(animate);
   }, []);
 
   const handleCashout = useCallback(() => {
@@ -171,7 +125,7 @@ export default function CrashGame() {
       cancelAnimationFrame(animationRef.current);
     }
     
-    const winAmount = parseFloat(betAmount) * currentMultiplier;
+    const winAmount = parseFloat(stakeAmount) * currentMultiplier;
     setPayout(winAmount);
     setGamePhase("cashedOut");
     
@@ -184,7 +138,7 @@ export default function CrashGame() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          betAmount: parseFloat(betAmount),
+          stakeAmount: parseFloat(stakeAmount),
           cashoutMultiplier: currentMultiplier,
           crashPoint: targetCrashRef.current,
           isWin: true,
@@ -200,37 +154,63 @@ export default function CrashGame() {
     });
     
     queryClient.invalidateQueries({ queryKey: ['casino-history'] });
-  }, [gamePhase, currentMultiplier, betAmount, currentUser, setCurrentUser, toast, queryClient]);
+  }, [gamePhase, currentMultiplier, stakeAmount, currentUser, setCurrentUser, toast, queryClient]);
+
+  const startGame = useCallback((targetCrash: number) => {
+    targetCrashRef.current = targetCrash;
+    hasCashedOutRef.current = false;
+    startTimeRef.current = Date.now();
+    historyRef.current = [1];
+    setGamePhase("flying");
+    setCurrentMultiplier(1.00);
+    setCrashPoint(null);
+    setPayout(0);
+    setRocketY(100);
+    
+    const animate = () => {
+      const elapsed = (Date.now() - startTimeRef.current) / 1000;
+      const mult = Math.pow(1.05, elapsed * 10);
+      const roundedMult = Math.round(mult * 100) / 100;
+      
+      setCurrentMultiplier(roundedMult);
+      historyRef.current = [...historyRef.current.slice(-100), roundedMult];
+      drawGraph(historyRef.current, "flying");
+      
+      if (roundedMult >= targetCrashRef.current && !hasCashedOutRef.current) {
+        setGamePhase("crashed");
+        setCrashPoint(targetCrashRef.current);
+        drawGraph(historyRef.current, "crashed");
+        animationRef.current = null;
+        return;
+      }
+      
+      if (hasCashedOutRef.current) {
+        drawGraph(historyRef.current, "cashedOut");
+        return;
+      }
+      
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    
+    animationRef.current = requestAnimationFrame(animate);
+  }, [drawGraph]);
 
   useEffect(() => {
-    if (gamePhase === "crashed" && !hasCashedOutRef.current) {
+    if (gamePhase === "crashed" && !hasCashedOutRef.current && crashPoint) {
       toast({
-        title: `Crashed at ${crashPoint?.toFixed(2)}x 💥`,
-        description: `Lost ₹${parseFloat(betAmount).toFixed(2)}`,
+        title: `Crashed at ${crashPoint.toFixed(2)}x 💥`,
+        description: `Lost ₹${parseFloat(stakeAmount).toFixed(2)}`,
         variant: "destructive"
       });
       
       if (currentUser) {
-        const newBalance = currentUser.balance - parseFloat(betAmount);
+        const newBalance = currentUser.balance - parseFloat(stakeAmount);
         setCurrentUser({ ...currentUser, balance: newBalance });
-        
-        fetch('/api/casino/crash/settle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            betAmount: parseFloat(betAmount),
-            cashoutMultiplier: 0,
-            crashPoint: crashPoint,
-            isWin: false,
-            payout: 0
-          })
-        });
       }
       
       queryClient.invalidateQueries({ queryKey: ['casino-history'] });
     }
-  }, [gamePhase, crashPoint, betAmount, currentUser, setCurrentUser, toast, queryClient]);
+  }, [gamePhase, crashPoint]);
 
   useEffect(() => {
     return () => {
@@ -246,9 +226,9 @@ export default function CrashGame() {
       return;
     }
     
-    const amount = parseFloat(betAmount);
+    const amount = parseFloat(stakeAmount);
     if (isNaN(amount) || amount <= 0) {
-      toast({ title: "Invalid bet amount", variant: "destructive" });
+      toast({ title: "Invalid amount", variant: "destructive" });
       return;
     }
     
@@ -264,17 +244,18 @@ export default function CrashGame() {
   };
 
   const handleNewGame = () => {
-    setGamePhase("betting");
+    setGamePhase("waiting");
     setCurrentMultiplier(1.00);
-    setMultiplierHistory([1]);
+    historyRef.current = [1];
     setCrashPoint(null);
     setPayout(0);
-    setRocketPosition({ x: 50, y: 100 });
+    setRocketY(100);
+    drawGraph([1], "waiting");
   };
 
-  const selectBet = (amount: number, index: number) => {
-    setBetAmount(amount.toString());
-    setSelectedBetIndex(index);
+  const selectStake = (amount: number, index: number) => {
+    setStakeAmount(amount.toString());
+    setSelectedStakeIndex(index);
   };
 
   const selectMultiplier = (mult: number, index: number) => {
@@ -283,7 +264,7 @@ export default function CrashGame() {
   };
 
   const isFlying = gamePhase === "flying";
-  const isBetting = gamePhase === "betting";
+  const isWaiting = gamePhase === "waiting";
   const isCrashed = gamePhase === "crashed";
   const isCashedOut = gamePhase === "cashedOut";
 
@@ -316,11 +297,10 @@ export default function CrashGame() {
             
             {isFlying && (
               <div 
-                className="absolute transition-all duration-100 ease-out z-10"
+                className="absolute right-8 transition-all duration-75 ease-out z-10"
                 style={{
-                  left: `${Math.min(rocketPosition.x, 95)}%`,
-                  bottom: `${100 - rocketPosition.y}%`,
-                  transform: 'translate(-50%, 50%) rotate(-45deg)'
+                  top: `${rocketY}%`,
+                  transform: 'translateY(-50%) rotate(-45deg)'
                 }}
               >
                 <Rocket className="w-10 h-10 text-orange-500 drop-shadow-[0_0_10px_rgba(251,146,60,0.8)]" />
@@ -330,11 +310,10 @@ export default function CrashGame() {
             
             {(isCrashed || isCashedOut) && (
               <div 
-                className="absolute z-10"
+                className="absolute right-8 z-10"
                 style={{
-                  left: `${Math.min(rocketPosition.x, 95)}%`,
-                  bottom: `${100 - rocketPosition.y}%`,
-                  transform: 'translate(-50%, 50%)'
+                  top: `${rocketY}%`,
+                  transform: 'translateY(-50%)'
                 }}
               >
                 {isCrashed ? (
@@ -351,7 +330,7 @@ export default function CrashGame() {
                 isFlying && "text-yellow-400",
                 isCrashed && "text-red-500",
                 isCashedOut && "text-green-400",
-                isBetting && "text-white/50"
+                isWaiting && "text-white/50"
               )}>
                 {currentMultiplier.toFixed(2)}x
               </div>
@@ -383,39 +362,39 @@ export default function CrashGame() {
                 data-testid="button-cashout"
               >
                 <Zap className="w-5 h-5 mr-2" />
-                CASHOUT ₹{(parseFloat(betAmount) * currentMultiplier).toFixed(0)}
+                CASHOUT ₹{(parseFloat(stakeAmount) * currentMultiplier).toFixed(0)}
               </Button>
             )}
           </div>
 
           <div className="grid md:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="text-sm text-muted-foreground mb-2 block">Bet Amount</label>
+              <label className="text-sm text-muted-foreground mb-2 block">Stake Amount</label>
               <Input
                 type="number"
-                value={betAmount}
+                value={stakeAmount}
                 onChange={(e) => {
-                  setBetAmount(e.target.value);
-                  setSelectedBetIndex(null);
+                  setStakeAmount(e.target.value);
+                  setSelectedStakeIndex(null);
                 }}
                 className="text-lg font-mono bg-black/30 border-white/20"
                 min="10"
                 disabled={isFlying}
-                data-testid="input-bet-amount"
+                data-testid="input-stake-amount"
               />
               <div className="flex flex-wrap gap-2 mt-2">
-                {QUICK_BETS.map((amount, idx) => (
+                {QUICK_STAKES.map((amount, idx) => (
                   <Button
                     key={amount}
-                    variant={selectedBetIndex === idx ? "default" : "outline"}
+                    variant={selectedStakeIndex === idx ? "default" : "outline"}
                     size="sm"
-                    onClick={() => selectBet(amount, idx)}
+                    onClick={() => selectStake(amount, idx)}
                     disabled={isFlying}
                     className={cn(
                       "text-xs transition-all",
-                      selectedBetIndex === idx && "bg-orange-600 hover:bg-orange-700 border-orange-500 ring-2 ring-orange-400"
+                      selectedStakeIndex === idx && "bg-orange-600 hover:bg-orange-700 border-orange-500 ring-2 ring-orange-400"
                     )}
-                    data-testid={`button-bet-${amount}`}
+                    data-testid={`button-stake-${amount}`}
                   >
                     ₹{amount}
                   </Button>
@@ -463,7 +442,7 @@ export default function CrashGame() {
             <div>
               <span className="text-sm text-muted-foreground">Potential Win: </span>
               <span className="text-lg font-bold text-green-400">
-                ₹{(parseFloat(betAmount || '0') * parseFloat(cashoutMultiplier || '0')).toFixed(2)}
+                ₹{(parseFloat(stakeAmount || '0') * parseFloat(cashoutMultiplier || '0')).toFixed(2)}
               </span>
             </div>
             <div className="text-right">
@@ -474,7 +453,7 @@ export default function CrashGame() {
             </div>
           </div>
 
-          {isBetting ? (
+          {isWaiting ? (
             <Button 
               className="w-full h-14 text-lg gap-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
               onClick={handlePlay}
@@ -482,7 +461,7 @@ export default function CrashGame() {
               data-testid="button-launch"
             >
               <Rocket className="w-5 h-5" />
-              Launch (₹{parseFloat(betAmount || '0').toFixed(0)})
+              Launch (₹{parseFloat(stakeAmount || '0').toFixed(0)})
             </Button>
           ) : (isCrashed || isCashedOut) ? (
             <Button 
@@ -499,7 +478,7 @@ export default function CrashGame() {
               data-testid="button-cashout-main"
             >
               <Zap className="w-5 h-5" />
-              CASHOUT NOW - ₹{(parseFloat(betAmount) * currentMultiplier).toFixed(2)}
+              CASHOUT NOW - ₹{(parseFloat(stakeAmount) * currentMultiplier).toFixed(2)}
             </Button>
           )}
         </Card>
@@ -510,7 +489,7 @@ export default function CrashGame() {
             <span className="text-sm font-semibold">How to Play</span>
           </div>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Set your bet and launch the rocket</li>
+            <li>• Set your stake and launch the rocket</li>
             <li>• Watch the multiplier grow in real-time</li>
             <li>• Hit <span className="text-green-400 font-semibold">CASHOUT</span> anytime before crash to win</li>
             <li>• If you don't cashout before crash, you lose</li>

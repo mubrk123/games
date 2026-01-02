@@ -11,7 +11,7 @@ export function BottomNav() {
     { href: "/", icon: Home, label: "Home", testId: "nav-home" },
     { href: "/sports", icon: Trophy, label: "Sports", testId: "nav-sports" },
     { href: "/casino", icon: Gamepad2, label: "Casino", testId: "nav-casino" },
-    { href: "/my-bets", icon: Ticket, label: "My Bets", testId: "nav-bets" },
+    { href: "/my-bets", icon: Ticket, label: "My Plays", testId: "nav-plays" },
     { href: currentUser ? "/profile" : "/login", icon: User, label: currentUser ? "Profile" : "Login", testId: "nav-profile" },
   ];
 

@@ -44,7 +44,7 @@ export function MobileBetSlip({ selectedBet, onClear }: MobileBetSlipProps) {
 
   const handlePlaceBet = async () => {
     if (!currentUser) {
-      toast({ title: "Please login", description: "You need to login to place bets", variant: "destructive" });
+      toast({ title: "Please login", description: "You need to login to place wagers", variant: "destructive" });
       return;
     }
 
@@ -90,7 +90,7 @@ export function MobileBetSlip({ selectedBet, onClear }: MobileBetSlipProps) {
       });
       onClear();
     } catch (error: any) {
-      toast({ title: "Failed to place bet", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to place wager", description: error.message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -99,7 +99,7 @@ export function MobileBetSlip({ selectedBet, onClear }: MobileBetSlipProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b border-border">
-        <h3 className="font-bold text-lg">Bet Slip</h3>
+        <h3 className="font-bold text-lg">Wager Slip</h3>
         <Button variant="ghost" size="icon" onClick={onClear}>
           <X className="h-5 w-5" />
         </Button>
@@ -203,7 +203,7 @@ export function MobileBetSlip({ selectedBet, onClear }: MobileBetSlipProps) {
           data-testid="button-place-bet"
         >
           <Zap className="h-5 w-5 mr-2" />
-          {isSubmitting ? 'Placing Bet...' : `Place ${selectedBet.type} Bet`}
+          {isSubmitting ? 'Placing Wager...' : `Place ${selectedBet.type} Wager`}
         </Button>
       </div>
     </div>

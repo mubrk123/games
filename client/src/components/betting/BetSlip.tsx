@@ -69,15 +69,15 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
       onClear();
       
       toast({
-        title: "Bet Placed Successfully",
+        title: "Wager Placed Successfully",
         description: `Matched at ${selectedBet?.odds}`,
         className: "bg-green-600 text-white border-none"
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Bet Failed",
-        description: error.message || "Failed to place bet",
+        title: "Wager Failed",
+        description: error.message || "Failed to place wager",
         variant: "destructive"
       });
     }
@@ -92,7 +92,7 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
 
   const handlePlaceBet = () => {
     if (!currentUser) {
-      toast({ title: "Login Required", description: "Please login to place bets", variant: "destructive" });
+      toast({ title: "Login Required", description: "Please login to place wagers", variant: "destructive" });
       return;
     }
     if (!selectedBet || !stake) return;
@@ -133,8 +133,8 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
     <Card className="h-full border-none shadow-none bg-transparent flex flex-col">
       <Tabs defaultValue="slip" className="w-full flex-1 flex flex-col">
         <TabsList className="w-full grid grid-cols-2 bg-card border border-border">
-          <TabsTrigger value="slip" data-testid="tab-betslip">Bet Slip {selectedBet && <span className="ml-2 w-2 h-2 rounded-full bg-primary animate-pulse" />}</TabsTrigger>
-          <TabsTrigger value="open" data-testid="tab-mybets">My Bets ({userBets.length})</TabsTrigger>
+          <TabsTrigger value="slip" data-testid="tab-betslip">Wager Slip {selectedBet && <span className="ml-2 w-2 h-2 rounded-full bg-primary animate-pulse" />}</TabsTrigger>
+          <TabsTrigger value="open" data-testid="tab-mybets">My Plays ({userBets.length})</TabsTrigger>
         </TabsList>
         
         <TabsContent value="slip" className="flex-1 flex flex-col gap-4 mt-4">
@@ -199,7 +199,7 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
                   onClick={handlePlaceBet} 
                   disabled={!currentUser || placeBetMutation.isPending}
                 >
-                  {placeBetMutation.isPending ? 'Placing...' : currentUser ? 'Place Bet' : 'Login to Bet'}
+                  {placeBetMutation.isPending ? 'Placing...' : currentUser ? 'Place Wager' : 'Login to Play'}
                 </Button>
               </div>
             </div>
@@ -213,7 +213,7 @@ export function BetSlip({ selectedBet, onClear }: BetSlipProps) {
 
         <TabsContent value="open" className="flex-1 mt-4 overflow-auto">
           {userBets.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No open bets</div>
+            <div className="text-center py-8 text-muted-foreground">No open plays</div>
           ) : (
             <div className="space-y-3">
               {userBets.map(bet => (

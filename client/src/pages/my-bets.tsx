@@ -29,7 +29,7 @@ export default function MyBets() {
       <AppShell>
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
           <h2 className="text-xl font-bold mb-2">Login Required</h2>
-          <p className="text-muted-foreground mb-4">Please login to view your bets</p>
+          <p className="text-muted-foreground mb-4">Please login to view your plays</p>
           <Link href="/login">
             <Button>Login</Button>
           </Link>
@@ -93,7 +93,7 @@ export default function MyBets() {
   return (
     <AppShell>
       <div className="space-y-4">
-        <h1 className="text-xl font-bold">My Bets</h1>
+        <h1 className="text-xl font-bold">My Plays</h1>
 
         <Tabs defaultValue="open" className="w-full">
           <TabsList className="w-full grid grid-cols-2">
@@ -110,9 +110,9 @@ export default function MyBets() {
               <div className="text-center py-8 text-muted-foreground">Loading...</div>
             ) : openBets.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
-                <p className="mb-2">No open bets</p>
+                <p className="mb-2">No open plays</p>
                 <Link href="/">
-                  <Button variant="outline" size="sm">Place a Bet</Button>
+                  <Button variant="outline" size="sm">Place a Wager</Button>
                 </Link>
               </div>
             ) : (
@@ -125,7 +125,7 @@ export default function MyBets() {
               <div className="text-center py-8 text-muted-foreground">Loading...</div>
             ) : settledBets.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
-                No settled bets yet
+                No settled plays yet
               </div>
             ) : (
               settledBets.map((bet: any) => <BetCard key={bet.id} bet={bet} />)
