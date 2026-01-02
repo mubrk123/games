@@ -95,8 +95,13 @@ app.use((req, res, next) => {
     () => {
       log(`serving on port ${port}`);
       
-      // Start settlement service to auto-settle bets (check every 30 seconds)
-      settlementService.start(30000);
+      // Start settlement service to auto-settle bets (check every 60 seconds)
+      settlementService.start(60000);
+      
+      // Start instance settlement service for ball-by-ball betting (check every 10 seconds)
+      import("./instanceSettlementService").then(({ instanceSettlementService }) => {
+        instanceSettlementService.start(10000);
+      });
     },
   );
 })();

@@ -941,7 +941,7 @@ export async function registerRoutes(
         matchId: market.matchId,
         marketId: market.id,
         runnerId: outcome.id,
-        runnerName: outcome.name, // Store outcome name for settlement
+        runnerName: outcome.name,
         type: 'BACK',
         odds: outcome.odds.toString(),
         stake: stake,
@@ -956,6 +956,19 @@ export async function registerRoutes(
         amount: `-${stake}`,
         type: 'BET_PLACED',
         description: `Instance bet: ${market.name} - ${outcome.name}`,
+      });
+
+      const { instanceSettlementService } = await import("./instanceSettlementService");
+      instanceSettlementService.addInstanceBet(market.id, {
+        betType: 'BACK',
+        oddsValue: outcome.odds,
+        oddsName: outcome.name,
+        userId,
+        outcomeId: outcome.id,
+        marketId: market.id,
+        stake: stakeNum,
+        potentialProfit,
+        createdAt: new Date(),
       });
 
       res.json({ 
