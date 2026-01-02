@@ -34,7 +34,11 @@ export type InstanceMarketType =
   | 'CURRENT_OVER'
   | 'NEXT_OVER'
   | 'SESSION'
-  | 'NEXT_GOAL';
+  | 'PLAYER_PERFORMANCE'
+  | 'NEXT_GOAL'
+  | 'NEXT_POINT'
+  | 'NEXT_WICKET'
+  | 'BOUNDARY';
 
 export type InstanceMarketStatus = 
   | 'PENDING'

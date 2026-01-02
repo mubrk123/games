@@ -390,6 +390,8 @@ export interface InstanceMarket {
   closeTime: string;
   status: 'PENDING' | 'OPEN' | 'SUSPENDED' | 'CLOSED' | 'SETTLED';
   eventReference: string;
+  overNumber: number;
+  ballNumber: number;
   outcomes: InstanceOutcome[];
 }
 

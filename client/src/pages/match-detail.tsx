@@ -383,46 +383,151 @@ export default function MatchDetail() {
                 <p>Loading instance markets...</p>
               </div>
             ) : (
-              instanceMarkets.map(market => (
-                <div key={market.id} className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-yellow-500" /> {market.name}
+              <>
+                {/* Ball-by-Ball Section - Always Visible */}
+                {instanceMarkets.filter(m => m.instanceType === 'NEXT_BALL').length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2 text-yellow-500">
+                      <Zap className="h-4 w-4" /> Ball-by-Ball Betting
                     </h3>
-                    <Badge 
-                      variant={market.status === 'OPEN' ? 'default' : 'secondary'}
-                      className={cn(
-                        "text-[10px]",
-                        market.status === 'OPEN' && "bg-green-500/20 text-green-400"
-                      )}
-                    >
-                      <Clock className="h-3 w-3 mr-1" />
-                      {getTimeRemaining(market.closeTime)}
-                    </Badge>
+                    <p className="text-xs text-muted-foreground">Predict the outcome of each ball (3-ball delay from current)</p>
+                    
+                    <div className="space-y-3">
+                      {instanceMarkets
+                        .filter(m => m.instanceType === 'NEXT_BALL')
+                        .sort((a, b) => (a.overNumber * 6 + a.ballNumber) - (b.overNumber * 6 + b.ballNumber))
+                        .map(market => (
+                          <div key={market.id} className="p-3 rounded-xl bg-card border border-border/50">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-bold text-primary">{market.name}</span>
+                              <Badge 
+                                variant={market.status === 'OPEN' ? 'default' : 'secondary'}
+                                className={cn(
+                                  "text-[10px]",
+                                  market.status === 'OPEN' && "bg-green-500/20 text-green-400"
+                                )}
+                              >
+                                <Clock className="h-3 w-3 mr-1" />
+                                {getTimeRemaining(market.closeTime)}
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1">
+                              {market.outcomes.slice(0, 8).map((outcome) => (
+                                <Button
+                                  key={outcome.id}
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={market.status !== 'OPEN'}
+                                  className={cn(
+                                    "h-12 flex-col gap-0 text-center p-1",
+                                    market.status !== 'OPEN' && "opacity-50",
+                                    selectedInstance?.outcome.id === outcome.id && "ring-2 ring-primary"
+                                  )}
+                                  onClick={() => setSelectedInstance({ market, outcome })}
+                                  data-testid={`ball-${outcome.id}`}
+                                >
+                                  <span className="text-[9px] font-medium leading-tight truncate w-full">{outcome.name.split(' ')[0]}</span>
+                                  <span className="font-bold text-xs text-primary">{outcome.odds.toFixed(2)}</span>
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">{market.description}</p>
+                )}
 
-                  <div className="grid grid-cols-4 gap-2">
-                    {market.outcomes.map((outcome) => (
-                      <Button
-                        key={outcome.id}
-                        variant="outline"
-                        disabled={market.status !== 'OPEN'}
-                        className={cn(
-                          "h-16 flex-col gap-1 text-center",
-                          market.status !== 'OPEN' && "opacity-50",
-                          selectedInstance?.outcome.id === outcome.id && "ring-2 ring-primary"
-                        )}
-                        onClick={() => setSelectedInstance({ market, outcome })}
-                        data-testid={`instance-${outcome.id}`}
-                      >
-                        <span className="text-[10px] font-medium leading-tight">{outcome.name}</span>
-                        <span className="font-bold text-sm text-primary">{outcome.odds.toFixed(2)}</span>
-                      </Button>
-                    ))}
+                {/* Next Over Section */}
+                {instanceMarkets.filter(m => m.instanceType === 'NEXT_OVER').length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2 text-blue-500">
+                      <TrendingUp className="h-4 w-4" /> Next Over Prediction
+                    </h3>
+                    <p className="text-xs text-muted-foreground">Closes when 6th ball of current over is bowled</p>
+                    
+                    {instanceMarkets
+                      .filter(m => m.instanceType === 'NEXT_OVER')
+                      .map(market => (
+                        <div key={market.id} className="p-3 rounded-xl bg-card border border-blue-500/30">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-bold">{market.name}</span>
+                            <Badge 
+                              variant={market.status === 'OPEN' ? 'default' : 'secondary'}
+                              className={cn(
+                                "text-[10px]",
+                                market.status === 'OPEN' && "bg-blue-500/20 text-blue-400"
+                              )}
+                            >
+                              <Clock className="h-3 w-3 mr-1" />
+                              {getTimeRemaining(market.closeTime)}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2">
+                            {market.outcomes.map((outcome) => (
+                              <Button
+                                key={outcome.id}
+                                variant="outline"
+                                disabled={market.status !== 'OPEN'}
+                                className={cn(
+                                  "h-14 flex-col gap-1 text-center",
+                                  market.status !== 'OPEN' && "opacity-50",
+                                  selectedInstance?.outcome.id === outcome.id && "ring-2 ring-primary"
+                                )}
+                                onClick={() => setSelectedInstance({ market, outcome })}
+                                data-testid={`over-${outcome.id}`}
+                              >
+                                <span className="text-[9px] font-medium leading-tight">{outcome.name}</span>
+                                <span className="font-bold text-sm text-primary">{outcome.odds.toFixed(2)}</span>
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                   </div>
-                </div>
-              ))
+                )}
+
+                {/* Session Markets */}
+                {instanceMarkets.filter(m => m.instanceType === 'SESSION').map(market => (
+                  <div key={market.id} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-yellow-500" /> {market.name}
+                      </h3>
+                      <Badge 
+                        variant={market.status === 'OPEN' ? 'default' : 'secondary'}
+                        className={cn(
+                          "text-[10px]",
+                          market.status === 'OPEN' && "bg-green-500/20 text-green-400"
+                        )}
+                      >
+                        <Clock className="h-3 w-3 mr-1" />
+                        {getTimeRemaining(market.closeTime)}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{market.description}</p>
+
+                    <div className="grid grid-cols-4 gap-2">
+                      {market.outcomes.map((outcome) => (
+                        <Button
+                          key={outcome.id}
+                          variant="outline"
+                          disabled={market.status !== 'OPEN'}
+                          className={cn(
+                            "h-16 flex-col gap-1 text-center",
+                            market.status !== 'OPEN' && "opacity-50",
+                            selectedInstance?.outcome.id === outcome.id && "ring-2 ring-primary"
+                          )}
+                          onClick={() => setSelectedInstance({ market, outcome })}
+                          data-testid={`session-${outcome.id}`}
+                        >
+                          <span className="text-[10px] font-medium leading-tight">{outcome.name}</span>
+                          <span className="font-bold text-sm text-primary">{outcome.odds.toFixed(2)}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </>
             )}
 
             {selectedInstance && (
