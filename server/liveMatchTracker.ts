@@ -12,6 +12,8 @@ interface TrackedMatchState {
   wickets: number;
   lastUpdate: number;
   marketsGenerated: boolean;
+  currentInning: number;
+  highestBallTotal: number;
 }
 
 class LiveMatchTracker {
@@ -19,6 +21,10 @@ class LiveMatchTracker {
   private intervalId: NodeJS.Timeout | null = null;
   private matchStates: Map<string, TrackedMatchState> = new Map();
   private pollInterval = 2000;
+
+  private ballToTotal(over: number, ball: number): number {
+    return over * 6 + ball;
+  }
 
   async pollLiveMatches(): Promise<void> {
     try {
@@ -47,7 +53,9 @@ class LiveMatchTracker {
         return;
       }
 
-      const latestInning = matchInfo.score[matchInfo.score.length - 1];
+      const currentInningIndex = matchInfo.score.length;
+      const latestInning = matchInfo.score[currentInningIndex - 1];
+      
       const overs = latestInning.o || 0;
       const currentOver = Math.floor(overs);
       const currentBall = Math.round((overs - currentOver) * 10);
@@ -55,6 +63,21 @@ class LiveMatchTracker {
       const wickets = latestInning.w || 0;
 
       const prevState = this.matchStates.get(matchId);
+      const currentTotal = this.ballToTotal(currentOver, currentBall);
+      
+      const inningChanged = prevState && currentInningIndex !== prevState.currentInning;
+      
+      if (inningChanged) {
+        console.log(`[LiveTracker] Innings changed for ${matchId}: ${prevState?.currentInning} -> ${currentInningIndex}`);
+      }
+      
+      const prevHighestBallTotal = inningChanged ? 0 : (prevState?.highestBallTotal || 0);
+      
+      if (prevState && !inningChanged && currentTotal < prevHighestBallTotal) {
+        console.log(`[LiveTracker] Ignoring backwards data for ${matchId}: ${currentOver}.${currentBall} (total ${currentTotal}) < highest ${prevHighestBallTotal}`);
+        return;
+      }
+
       const newState: TrackedMatchState = {
         matchId,
         currentOver,
@@ -62,7 +85,9 @@ class LiveMatchTracker {
         runs,
         wickets,
         lastUpdate: Date.now(),
-        marketsGenerated: prevState?.marketsGenerated || false,
+        marketsGenerated: (inningChanged ? false : prevState?.marketsGenerated) || false,
+        currentInning: currentInningIndex,
+        highestBallTotal: Math.max(currentTotal, prevHighestBallTotal),
       };
 
       const scoreUpdate: MatchScoreUpdate = {
@@ -74,7 +99,7 @@ class LiveMatchTracker {
         scoreAway: matchInfo.score?.[1]?.r || 0,
         currentOver,
         currentBall,
-        currentInning: matchInfo.score.length,
+        currentInning: currentInningIndex,
         battingTeam: latestInning.inning?.split(' ')?.[0] || 'Unknown',
         runs,
         wickets,
@@ -85,10 +110,8 @@ class LiveMatchTracker {
 
       realtimeHub.emitMatchScore(scoreUpdate);
 
-      if (prevState) {
-        const ballAdvanced = 
-          currentOver > prevState.currentOver ||
-          (currentOver === prevState.currentOver && currentBall > prevState.currentBall);
+      if (prevState && !inningChanged) {
+        const ballAdvanced = currentTotal > prevState.highestBallTotal;
         
         const runsDiff = runs - prevState.runs;
         const wicketsDiff = wickets - prevState.wickets;
@@ -102,7 +125,7 @@ class LiveMatchTracker {
             wicketsDiff > 0
           );
 
-          console.log(`[LiveTracker] Ball detected for ${matchId}: ${ballResult.outcome}`);
+          console.log(`[LiveTracker] Ball detected for ${matchId}: ${currentOver}.${currentBall} - ${ballResult.outcome}`);
           
           realtimeHub.emitBallResult(ballResult);
 
@@ -115,7 +138,7 @@ class LiveMatchTracker {
       if (matchInfo.matchStarted && !matchInfo.matchEnded) {
         const markets = instanceBettingService.getActiveMarketsForMatch(matchId);
         
-        if (markets.length === 0 && !newState.marketsGenerated) {
+        if (markets.length === 0 || !newState.marketsGenerated || inningChanged) {
           instanceBettingService.generateSyncedMarkets(matchId, currentOver, currentBall);
           newState.marketsGenerated = true;
         }
@@ -130,6 +153,8 @@ class LiveMatchTracker {
               type: m.instanceType as InstanceMarketType,
               status: m.status as InstanceMarketStatus,
               closeTime: m.closeTime.getTime(),
+              overNumber: m.overNumber,
+              ballNumber: m.ballNumber,
               outcomes: m.outcomes.map(o => ({
                 id: o.id,
                 name: o.name,
@@ -203,19 +228,15 @@ class LiveMatchTracker {
     currentBall: number
   ): Promise<void> {
     try {
+      const currentTotal = this.ballToTotal(currentOver, currentBall);
       const markets = instanceBettingService.getActiveMarketsForMatch(matchId);
       
       for (const market of markets) {
         if (market.instanceType === 'NEXT_BALL' && market.status === 'OPEN') {
-          const marketOver = parseInt(market.name.match(/Over (\d+)/)?.[1] || '0');
-          const marketBall = parseInt(market.name.match(/Ball (\d+)/)?.[1] || '0');
+          const marketTotal = this.ballToTotal(market.overNumber, market.ballNumber);
           
-          const ballPassed = 
-            currentOver > marketOver ||
-            (currentOver === marketOver && currentBall > marketBall);
-
-          if (ballPassed) {
-            console.log(`[LiveTracker] Settling market ${market.id}: ${market.name}`);
+          if (marketTotal <= currentTotal) {
+            console.log(`[LiveTracker] Settling market ${market.id}: Ball ${market.overNumber}.${market.ballNumber} (market total ${marketTotal} <= current ${currentTotal})`);
             instanceBettingService.closeMarket(market.id);
             await instanceSettlementService.settleInstanceMarket(market, ballResult.outcome);
           }

@@ -55,6 +55,8 @@ export interface MarketUpdate {
     type: InstanceMarketType;
     status: InstanceMarketStatus;
     closeTime: number;
+    overNumber: number;
+    ballNumber: number;
     outcomes: {
       id: string;
       name: string;
