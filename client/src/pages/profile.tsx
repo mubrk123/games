@@ -30,7 +30,7 @@ export default function Profile() {
   }
 
   const menuItems = [
-    { icon: Wallet, label: "Wallet & Transactions", href: "/wallet" },
+    { icon: Wallet, label: "Withdrawals & Transactions", href: "/withdrawals" },
     { icon: TrendingUp, label: "Betting History", href: "/my-bets" },
     { icon: Award, label: "Promotions & Bonuses", href: "#" },
     { icon: Shield, label: "Responsible Gaming", href: "#" },
