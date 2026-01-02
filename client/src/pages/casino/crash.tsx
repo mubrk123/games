@@ -29,6 +29,8 @@ export default function CrashGame() {
   const animationRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const targetCrashRef = useRef<number>(0);
+  const autoCashoutRef = useRef<number>(2.0);
+  const stakeRef = useRef<number>(100);
   const hasCashedOutRef = useRef<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<number[]>([1]);
@@ -156,8 +158,37 @@ export default function CrashGame() {
     queryClient.invalidateQueries({ queryKey: ['casino-history'] });
   }, [gamePhase, currentMultiplier, stakeAmount, currentUser, setCurrentUser, toast, queryClient]);
 
-  const startGame = useCallback((targetCrash: number) => {
+  const triggerAutoCashout = useCallback((multiplier: number) => {
+    if (hasCashedOutRef.current) return;
+    
+    hasCashedOutRef.current = true;
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    
+    const winAmount = stakeRef.current * multiplier;
+    setPayout(winAmount);
+    setGamePhase("cashedOut");
+    drawGraph(historyRef.current, "cashedOut");
+    
+    if (currentUser) {
+      const newBalance = currentUser.balance + winAmount;
+      setCurrentUser({ ...currentUser, balance: newBalance });
+    }
+    
+    toast({
+      title: `Auto cashed out at ${multiplier.toFixed(2)}x! 🚀`,
+      description: `Won ₹${winAmount.toFixed(2)}`,
+      className: "bg-green-600 text-white border-none"
+    });
+    
+    queryClient.invalidateQueries({ queryKey: ['casino-history'] });
+  }, [currentUser, setCurrentUser, toast, queryClient, drawGraph]);
+
+  const startGame = useCallback((targetCrash: number, autoCashout: number, stake: number) => {
     targetCrashRef.current = targetCrash;
+    autoCashoutRef.current = autoCashout;
+    stakeRef.current = stake;
     hasCashedOutRef.current = false;
     startTimeRef.current = Date.now();
     historyRef.current = [1];
@@ -176,6 +207,13 @@ export default function CrashGame() {
       historyRef.current = [...historyRef.current.slice(-100), roundedMult];
       drawGraph(historyRef.current, "flying");
       
+      // Check auto-cashout FIRST (before crash check)
+      if (roundedMult >= autoCashoutRef.current && !hasCashedOutRef.current) {
+        triggerAutoCashout(autoCashoutRef.current);
+        return;
+      }
+      
+      // Then check if crashed
       if (roundedMult >= targetCrashRef.current && !hasCashedOutRef.current) {
         setGamePhase("crashed");
         setCrashPoint(targetCrashRef.current);
@@ -193,7 +231,7 @@ export default function CrashGame() {
     };
     
     animationRef.current = requestAnimationFrame(animate);
-  }, [drawGraph]);
+  }, [drawGraph, triggerAutoCashout]);
 
   useEffect(() => {
     if (gamePhase === "crashed" && !hasCashedOutRef.current && crashPoint) {
@@ -239,8 +277,9 @@ export default function CrashGame() {
     
     const crash = 1 + Math.random() * Math.random() * 10;
     const roundedCrash = Math.round(crash * 100) / 100;
+    const autoCashout = parseFloat(cashoutMultiplier) || 2.0;
     
-    startGame(roundedCrash);
+    startGame(roundedCrash, autoCashout, amount);
   };
 
   const handleNewGame = () => {
