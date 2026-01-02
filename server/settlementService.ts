@@ -167,9 +167,9 @@ class SettlementService {
       );
 
       await client.query(
-        `INSERT INTO wallet_transactions (user_id, amount, type, description, balance)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [bet.userId, payout.toString(), transactionType, description, newBalance.toString()]
+        `INSERT INTO wallet_transactions (id, user_id, amount, type, description)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4)`,
+        [bet.userId, payout.toString(), transactionType, description]
       );
 
       await client.query('COMMIT');
