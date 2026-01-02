@@ -296,6 +296,38 @@ class InstanceSettlementService {
     }
   }
 
+  async syncMarketsWithLiveState(): Promise<void> {
+    try {
+      const allMarkets = instanceBettingService.getAllActiveMarkets();
+      const matchIds = new Set<string>();
+      
+      allMarkets.forEach(market => {
+        if (market.matchId.startsWith('cricket-')) {
+          matchIds.add(market.matchId);
+        }
+      });
+
+      for (const matchId of Array.from(matchIds)) {
+        const newState = await this.getMatchScoreState(matchId);
+        if (!newState) continue;
+
+        instanceBettingService.updateMatchState(matchId, newState.currentOver, newState.currentBall);
+        
+        const existingMarkets = instanceBettingService.getActiveMarketsForMatch(matchId);
+        const hasBallMarkets = existingMarkets.some(m => m.instanceType === 'NEXT_BALL');
+        
+        if (!hasBallMarkets && existingMarkets.length > 0) {
+          instanceBettingService.generateSyncedMarkets(matchId, newState.currentOver, newState.currentBall);
+          console.log(`[InstanceSettlement] Regenerated markets for ${matchId} at ${newState.currentOver}.${newState.currentBall}`);
+        }
+
+        this.scoreStates.set(matchId, newState);
+      }
+    } catch (error: any) {
+      console.error('[InstanceSettlement] Sync markets failed:', error.message);
+    }
+  }
+
   getSettlementLogs(): any[] {
     return this.settlementLogs;
   }
@@ -315,6 +347,7 @@ class InstanceSettlementService {
     console.log(`[InstanceSettlement] Service started (checking every ${intervalMs / 1000}s)`);
 
     this.intervalId = setInterval(async () => {
+      await this.syncMarketsWithLiveState();
       await this.settleExpiredMarkets();
       await this.checkAndSettleLiveMatches();
     }, intervalMs);
