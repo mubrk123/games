@@ -224,9 +224,39 @@ class CricketApiService {
       throw new Error('Failed to fetch current cricket matches');
     }
 
-    console.log(`[CricketAPI] Fetched ${data.data?.length || 0} current matches. Hits today: ${data.info?.hitsToday}`);
-    this.setCache(cacheKey, data.data || []);
-    return data.data || [];
+    let matches = data.data || [];
+    console.log(`[CricketAPI] Fetched ${matches.length} current matches. Hits today: ${data.info?.hitsToday}`);
+    
+    // Check if we have upcoming matches (matchStarted === false)
+    const hasUpcoming = matches.some(m => m.matchStarted === false);
+    
+    // If no upcoming matches from currentMatches, also fetch from matches endpoint
+    if (!hasUpcoming) {
+      try {
+        const upcomingResponse = await fetch(`${CRICKET_API_BASE}/matches?apikey=${this.getApiKey()}&offset=0`);
+        if (upcomingResponse.ok) {
+          const upcomingData: CricketApiResponse<CricketMatch[]> = await upcomingResponse.json();
+          if (upcomingData.status === 'success' && upcomingData.data) {
+            // Filter for upcoming matches only (not started yet, start time in future)
+            const now = new Date();
+            const upcomingMatches = upcomingData.data.filter(m => {
+              const matchTime = new Date(m.dateTimeGMT);
+              return m.matchStarted === false && matchTime > now;
+            });
+            console.log(`[CricketAPI] Found ${upcomingMatches.length} upcoming matches from /matches endpoint`);
+            // Merge with existing matches (avoid duplicates)
+            const existingIds = new Set(matches.map(m => m.id));
+            const newUpcoming = upcomingMatches.filter(m => !existingIds.has(m.id));
+            matches = [...matches, ...newUpcoming];
+          }
+        }
+      } catch (err) {
+        console.error('[CricketAPI] Failed to fetch upcoming matches:', err);
+      }
+    }
+
+    this.setCache(cacheKey, matches);
+    return matches;
   }
 
   async getAllMatches(offset: number = 0): Promise<CricketMatch[]> {
