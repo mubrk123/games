@@ -1105,22 +1105,41 @@ export async function registerRoutes(
       if (markets.length === 0) {
         let currentOver: number | undefined;
         let currentBall: number | undefined;
+        let matchStarted = false;
+        let matchEnded = false;
 
         if (matchId.startsWith('cricket-')) {
           try {
             const cleanId = matchId.replace('cricket-', '');
             const matchInfo = await cricketApiService.getMatchInfo(cleanId);
-            if (matchInfo.score && matchInfo.score.length > 0) {
+            
+            // Check if match has actually started and is live
+            matchStarted = matchInfo.matchStarted === true;
+            matchEnded = matchInfo.matchEnded === true;
+            
+            if (matchStarted && !matchEnded && matchInfo.score && matchInfo.score.length > 0) {
               const latestInning = matchInfo.score[matchInfo.score.length - 1];
               currentOver = Math.floor(latestInning.o);
               currentBall = Math.round((latestInning.o - currentOver) * 10);
+              // Ensure ball is at least 1 if over has overs
+              if (currentBall === 0 && latestInning.o > 0) {
+                currentBall = 6;
+                currentOver = currentOver > 0 ? currentOver - 1 : 0;
+              }
             }
-          } catch {
-            // Ignore errors, use random values
+          } catch (err) {
+            console.log(`[InstanceMarkets] Error fetching match info for ${matchId}:`, err);
           }
         }
 
-        markets = instanceBettingService.generateLiveInstanceMarkets(matchId, sport, homeTeam, awayTeam, currentOver, currentBall);
+        // Only generate markets if match is live (started but not ended) with valid ball data
+        if (matchStarted && !matchEnded) {
+          markets = instanceBettingService.generateLiveInstanceMarkets(matchId, sport, homeTeam, awayTeam, currentOver, currentBall);
+        } else if (!matchStarted) {
+          return res.json({ markets: [], message: "Match has not started yet" });
+        } else if (matchEnded) {
+          return res.json({ markets: [], message: "Match has ended" });
+        }
       }
 
       res.json({ markets });

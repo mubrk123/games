@@ -478,10 +478,14 @@ class InstanceBettingService {
     this.checkAndCloseExpiredMarkets();
     
     if (sport === 'cricket') {
-      const over = currentOver ?? Math.floor(Math.random() * 15) + 5;
-      const ball = currentBall ?? Math.floor(Math.random() * 6) + 1;
+      // Only generate markets if we have actual live ball/over data
+      // Do NOT use random fallback - match must be live with real data
+      if (currentOver === undefined || currentBall === undefined) {
+        console.log(`[InstanceBetting] No live data for match ${matchId} - skipping market generation`);
+        return [];
+      }
       
-      return this.generateSyncedMarkets(matchId, over, ball);
+      return this.generateSyncedMarkets(matchId, currentOver, currentBall);
     } else if (sport === 'football' || sport === 'soccer') {
       const markets: InstanceMarket[] = [];
       if (homeTeam && awayTeam) {
