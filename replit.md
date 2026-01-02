@@ -13,13 +13,15 @@ ProBetX is a full-stack, mobile-first sports betting exchange platform inspired 
 | Feature | Description | Files |
 |---------|-------------|-------|
 | **User Authentication** | Login/signup with bcrypt password hashing, session-based auth | `server/auth.ts`, `client/src/pages/auth/` |
-| **Role System** | USER, ADMIN, AGENT roles with route protection | `shared/schema.ts`, `server/routes.ts` |
+| **Role System** | USER, ADMIN, AGENT, SUPER_ADMIN roles with hierarchical access | `shared/schema.ts`, `server/routes.ts` |
+| **Super Admin** | Creates admins, manages admin balances, full system control | `server/routes.ts`, `client/src/pages/admin.tsx` |
 | **Wallet System** | Balance tracking, exposure calculation, transaction history | `shared/schema.ts`, `server/storage.ts` |
 | **Back/Lay Betting** | Traditional exchange-style betting on match outcomes | `server/routes.ts`, `client/src/components/betting/` |
 | **Live Cricket** | Real matches from CricketData.org API with live scores | `server/cricketApi.ts` |
 | **Real-time Updates** | 5-second polling for live match scores | `client/src/pages/match-detail.tsx` |
 | **Instance Betting** | Next Ball, Next Over, Session markets with 30s expiry | `server/instanceBetting.ts` |
-| **Auto-Settlement** | Background service settles bets when matches finish | `server/settlementService.ts` |
+| **Auto-Settlement** | Transaction-safe settlement with Cricket API and Odds API result detection | `server/settlementService.ts` |
+| **Manual Settlement** | Admin can manually settle or void bets for any match | `server/routes.ts`, `server/settlementService.ts` |
 | **Anti-Exploitation** | 10-second latency guard, 30s market windows, critical moment suspension | `server/routes.ts`, `server/instanceBetting.ts` |
 | **Mobile-First UI** | Bottom nav, touch-friendly components, responsive design | `client/src/components/layout/` |
 | **Admin Dashboard** | User management, risk monitoring, wallet adjustments | `client/src/pages/admin.tsx` |

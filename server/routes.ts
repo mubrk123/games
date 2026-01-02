@@ -458,6 +458,104 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // Settlement Routes (Admin Only)
+  // ============================================
+
+  // Get settlement status and logs
+  app.get("/api/admin/settlement/status", requireAdmin, async (req, res) => {
+    try {
+      const { settlementService } = await import("./settlementService");
+      const status = settlementService.getStatus();
+      const logs = settlementService.getSettlementLogs();
+      
+      const openBets = await storage.getBetsByStatus('OPEN');
+      
+      res.json({
+        ...status,
+        openBetsCount: openBets.length,
+        recentLogs: logs.slice(-20),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Manual settlement for a match
+  app.post("/api/admin/settlement/settle", requireAdmin, async (req, res) => {
+    try {
+      const { matchId, winner, isDraw } = req.body;
+      
+      if (!matchId) {
+        return res.status(400).json({ error: "matchId is required" });
+      }
+      
+      if (!isDraw && !winner) {
+        return res.status(400).json({ error: "winner is required when isDraw is false" });
+      }
+      
+      const { settlementService } = await import("./settlementService");
+      const results = await settlementService.manualSettlement(
+        matchId, 
+        isDraw ? 'Draw' : winner, 
+        isDraw || false
+      );
+      
+      res.json({
+        success: true,
+        message: `Settled ${results.length} bets`,
+        results,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Void all bets for a match
+  app.post("/api/admin/settlement/void", requireAdmin, async (req, res) => {
+    try {
+      const { matchId, reason } = req.body;
+      
+      if (!matchId) {
+        return res.status(400).json({ error: "matchId is required" });
+      }
+      
+      const { settlementService } = await import("./settlementService");
+      const results = await settlementService.voidMatchBets(matchId, reason || 'Admin voided');
+      
+      res.json({
+        success: true,
+        message: `Voided ${results.length} bets`,
+        results,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get open bets grouped by match
+  app.get("/api/admin/settlement/open-bets", requireAdmin, async (req, res) => {
+    try {
+      const openBets = await storage.getBetsByStatus('OPEN');
+      
+      const betsByMatch: { [matchId: string]: any[] } = {};
+      for (const bet of openBets) {
+        if (!betsByMatch[bet.matchId]) {
+          betsByMatch[bet.matchId] = [];
+        }
+        betsByMatch[bet.matchId].push(bet);
+      }
+      
+      res.json({
+        totalOpenBets: openBets.length,
+        matchesWithOpenBets: Object.keys(betsByMatch).length,
+        betsByMatch,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
   // Match Routes
   // ============================================
   

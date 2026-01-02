@@ -22,7 +22,7 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
 }
 
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
@@ -59,6 +59,7 @@ export interface IStorage {
   getUserBets(userId: string): Promise<Bet[]>;
   getAllBets(): Promise<Bet[]>;
   getBetsByMatch(matchId: string): Promise<Bet[]>;
+  getBetsByStatus(status: 'OPEN' | 'WON' | 'LOST' | 'VOID'): Promise<Bet[]>;
   
   // Wallet Transaction Operations
   createWalletTransaction(transaction: InsertWalletTransaction): Promise<WalletTransaction>;
@@ -234,6 +235,10 @@ export class DatabaseStorage implements IStorage {
 
   async getBetsByMatch(matchId: string): Promise<Bet[]> {
     return await db.select().from(schema.bets).where(eq(schema.bets.matchId, matchId));
+  }
+
+  async getBetsByStatus(status: 'OPEN' | 'WON' | 'LOST' | 'VOID'): Promise<Bet[]> {
+    return await db.select().from(schema.bets).where(eq(schema.bets.status, status)).orderBy(desc(schema.bets.createdAt));
   }
 
   // Wallet Transaction Operations
