@@ -1,33 +1,77 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { useStore } from "@/lib/store";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CheckCircle, XCircle, AlertCircle, Zap } from "lucide-react";
+import { Clock, CheckCircle, XCircle, AlertCircle, Zap, RefreshCw } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { useEffect } from "react";
+import { wsClient } from "@/lib/websocket";
+import type { BetSettlement, WalletUpdate } from "@shared/realtime";
+import { useToast } from "@/hooks/use-toast";
 
 export default function MyBets() {
-  const { currentUser } = useStore();
+  const { currentUser, setCurrentUser } = useStore();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
-  const { data: betsData, isLoading } = useQuery({
+  const { data: betsData, isLoading, refetch: refetchBets } = useQuery({
     queryKey: ['my-bets'],
     queryFn: async () => {
       const result = await api.getUserBets();
       return result.bets || [];
     },
     enabled: !!currentUser,
+    refetchInterval: 10000,
   });
 
-  const { data: instanceBetsData, isLoading: isLoadingInstance } = useQuery({
+  const { data: instanceBetsData, isLoading: isLoadingInstance, refetch: refetchInstanceBets } = useQuery({
     queryKey: ['my-instance-bets'],
     queryFn: async () => {
       const result = await api.getUserInstanceBets();
       return result.bets || [];
     },
     enabled: !!currentUser,
+    refetchInterval: 5000,
   });
+
+  useEffect(() => {
+    wsClient.connect();
+
+    const unsubSettlement = wsClient.on<BetSettlement>('bet:settled', (data) => {
+      console.log('[MyBets] Bet settled:', data);
+      
+      refetchBets();
+      refetchInstanceBets();
+      
+      const isWin = data.status === 'WON';
+      toast({
+        title: isWin ? '🎉 Bet Won!' : 'Bet Settled',
+        description: isWin 
+          ? `You won ₹${data.payout.toFixed(0)} on ${data.outcome}!`
+          : `${data.outcome} - Result: ${data.winningOutcome}`,
+        variant: isWin ? 'default' : 'destructive',
+      });
+    });
+
+    const unsubWallet = wsClient.on<WalletUpdate>('wallet:update', (data) => {
+      console.log('[MyBets] Wallet update:', data);
+      if (currentUser) {
+        setCurrentUser({
+          ...currentUser,
+          balance: data.balance,
+          exposure: data.exposure,
+        });
+      }
+    });
+
+    return () => {
+      unsubSettlement();
+      unsubWallet();
+    };
+  }, [currentUser, refetchBets, refetchInstanceBets, setCurrentUser, toast]);
 
   const bets = betsData || [];
   const instanceBets = instanceBetsData || [];
@@ -60,7 +104,7 @@ export default function MyBets() {
     };
 
     return (
-      <div className="bg-card rounded-xl border border-border/50 p-4 space-y-3">
+      <div className="bg-card rounded-xl border border-border/50 p-4 space-y-3" data-testid={`bet-card-${bet.id}`}>
         <div className="flex items-center justify-between">
           <Badge variant={isBack ? "default" : "secondary"} className={isBack ? "bg-blue-500/20 text-blue-400" : "bg-pink-500/20 text-pink-400"}>
             {bet.type}
@@ -104,14 +148,14 @@ export default function MyBets() {
 
   const InstanceBetCard = ({ bet }: { bet: any }) => {
     const statusIcons = {
-      OPEN: <Clock className="h-4 w-4" />,
+      OPEN: <Clock className="h-4 w-4 text-yellow-400" />,
       WON: <CheckCircle className="h-4 w-4 text-green-500" />,
       LOST: <XCircle className="h-4 w-4 text-red-500" />,
       VOID: <AlertCircle className="h-4 w-4 text-yellow-500" />,
     };
 
     return (
-      <div className="bg-card rounded-xl border border-border/50 p-4 space-y-3">
+      <div className="bg-card rounded-xl border border-border/50 p-4 space-y-3" data-testid={`instance-bet-card-${bet.id}`}>
         <div className="flex items-center justify-between">
           <Badge variant="outline" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
             <Zap className="h-3 w-3 mr-1" />
@@ -119,7 +163,7 @@ export default function MyBets() {
           </Badge>
           <div className="flex items-center gap-1.5 text-sm">
             {statusIcons[bet.status as keyof typeof statusIcons]}
-            <span className={bet.status === 'WON' ? 'text-green-500' : bet.status === 'LOST' ? 'text-red-500' : ''}>
+            <span className={bet.status === 'WON' ? 'text-green-500' : bet.status === 'LOST' ? 'text-red-500' : 'text-yellow-400'}>
               {bet.status}
             </span>
           </div>
@@ -147,6 +191,12 @@ export default function MyBets() {
           </div>
         </div>
 
+        {bet.winningOutcome && (
+          <p className="text-xs text-muted-foreground">
+            Result: <span className="font-medium">{bet.winningOutcome}</span>
+          </p>
+        )}
+
         <p className="text-[10px] text-muted-foreground">
           {new Date(bet.createdAt).toLocaleString()}
         </p>
@@ -154,12 +204,22 @@ export default function MyBets() {
     );
   };
 
+  const handleRefresh = () => {
+    refetchBets();
+    refetchInstanceBets();
+  };
+
   return (
     <AppShell>
       <div className="space-y-4">
-        <h1 className="text-xl font-bold">My Plays</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">My Plays</h1>
+          <Button variant="ghost" size="sm" onClick={handleRefresh} data-testid="refresh-bets-btn">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
 
-        <Tabs defaultValue="open" className="w-full">
+        <Tabs defaultValue="instance" className="w-full">
           <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="open" data-testid="tab-open-bets">
               Open ({openBets.length})
@@ -199,13 +259,19 @@ export default function MyBets() {
               <>
                 {openInstanceBets.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">Open</h3>
+                    <h3 className="text-sm font-medium text-yellow-400 flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Open ({openInstanceBets.length})
+                    </h3>
                     {openInstanceBets.map((bet: any) => <InstanceBetCard key={bet.id} bet={bet} />)}
                   </div>
                 )}
                 {settledInstanceBets.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">Settled</h3>
+                  <div className="space-y-3 mt-6">
+                    <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4" />
+                      Settled ({settledInstanceBets.length})
+                    </h3>
                     {settledInstanceBets.map((bet: any) => <InstanceBetCard key={bet.id} bet={bet} />)}
                   </div>
                 )}
