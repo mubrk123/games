@@ -739,6 +739,73 @@ export async function registerRoutes(
     }
   });
 
+  // Get live match state with ball-by-ball data (Premium API)
+  app.get("/api/cricket/live/:matchId", async (req, res) => {
+    try {
+      const { matchId } = req.params;
+      const cleanId = matchId.replace('cricket-', '');
+      
+      const liveState = await cricketApiService.getLiveMatchState(cleanId);
+      
+      if (!liveState) {
+        return res.status(404).json({ error: "Live data not available for this match" });
+      }
+      
+      res.json({ liveState });
+    } catch (error: any) {
+      console.error('Failed to fetch live match state:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get fantasy scorecard (Premium API)
+  app.get("/api/cricket/scorecard/:matchId", async (req, res) => {
+    try {
+      const { matchId } = req.params;
+      const cleanId = matchId.replace('cricket-', '');
+      
+      const scorecard = await cricketApiService.getFantasyScorecard(cleanId);
+      
+      if (!scorecard) {
+        return res.status(404).json({ error: "Scorecard not available" });
+      }
+      
+      res.json({ scorecard });
+    } catch (error: any) {
+      console.error('Failed to fetch scorecard:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get ball-by-ball data (Premium API)
+  app.get("/api/cricket/ballbyball/:matchId", async (req, res) => {
+    try {
+      const { matchId } = req.params;
+      const cleanId = matchId.replace('cricket-', '');
+      
+      const bbbData = await cricketApiService.getFantasyBallByBall(cleanId);
+      
+      if (!bbbData) {
+        return res.status(404).json({ error: "Ball-by-ball data not available" });
+      }
+      
+      res.json({ ballByBall: bbbData });
+    } catch (error: any) {
+      console.error('Failed to fetch ball-by-ball data:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get API usage stats
+  app.get("/api/cricket/usage", requireAuth, async (req, res) => {
+    try {
+      const usage = await cricketApiService.getApiUsage();
+      res.json({ usage });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ============================================
   // Betting Routes
   // ============================================
