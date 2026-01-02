@@ -678,20 +678,35 @@ export async function registerRoutes(
   // Cricket API Routes (CricketData.org)
   // ============================================
 
-  // Get all current cricket matches (live and upcoming only)
+  // Get all current cricket matches (live, upcoming, and recent)
   app.get("/api/cricket/current", async (req, res) => {
     try {
       const matches = await cricketApiService.getCurrentMatches();
-      const formattedMatches = matches
-        .map(m => cricketApiService.convertToMatch(m))
-        .filter(m => m.status === 'LIVE' || m.status === 'UPCOMING')
-        .sort((a, b) => {
-          // Live matches first
-          if (a.status === 'LIVE' && b.status !== 'LIVE') return -1;
-          if (b.status === 'LIVE' && a.status !== 'LIVE') return 1;
-          return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-        });
-      res.json({ matches: formattedMatches });
+      const formattedMatches = matches.map(m => cricketApiService.convertToMatch(m));
+      
+      // Separate by status
+      const liveMatches = formattedMatches.filter(m => m.status === 'LIVE');
+      const upcomingMatches = formattedMatches.filter(m => m.status === 'UPCOMING');
+      const finishedMatches = formattedMatches.filter(m => m.status === 'FINISHED');
+      
+      // Sort upcoming by start time
+      upcomingMatches.sort((a, b) => 
+        new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+      );
+      
+      // Sort finished by start time (most recent first)
+      finishedMatches.sort((a, b) => 
+        new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      );
+      
+      // Combine: live first, then upcoming, then recent finished (up to 5)
+      const result = [
+        ...liveMatches,
+        ...upcomingMatches,
+        ...finishedMatches.slice(0, 5)
+      ];
+      
+      res.json({ matches: result });
     } catch (error: any) {
       console.error('Failed to fetch current cricket matches:', error);
       res.status(500).json({ error: error.message, matches: [] });
