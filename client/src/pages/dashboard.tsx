@@ -208,7 +208,7 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
-            <Tabs defaultValue="in-play" className="w-full">
+            <Tabs defaultValue={matches.filter(m => m.status === 'LIVE').length > 0 ? "in-play" : matches.filter(m => m.status === 'FINISHED').length > 0 ? "recent" : "in-play"} className="w-full">
               <TabsList className="bg-card/50 border border-border/50 w-full justify-start overflow-x-auto">
                 <TabsTrigger value="in-play" className="flex-1 sm:flex-none" data-testid="tab-inplay">
                   In-Play ({matches.filter(m => m.status === 'LIVE').length})
@@ -216,13 +216,16 @@ export default function Dashboard() {
                 <TabsTrigger value="upcoming" className="flex-1 sm:flex-none" data-testid="tab-upcoming">
                   Upcoming ({matches.filter(m => m.status === 'UPCOMING').length})
                 </TabsTrigger>
+                <TabsTrigger value="recent" className="flex-1 sm:flex-none" data-testid="tab-recent">
+                  Recent ({matches.filter(m => m.status === 'FINISHED').length})
+                </TabsTrigger>
               </TabsList>
               
               <TabsContent value="in-play" className="space-y-3 mt-4">
                 {matches.filter(m => m.status === 'LIVE').length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
                     <p className="text-lg font-medium">No live matches at the moment</p>
-                    <p className="text-sm mt-2">Check the Upcoming tab for scheduled events</p>
+                    <p className="text-sm mt-2">Check the Recent tab to see finished matches</p>
                   </div>
                 ) : (
                   matches.filter(m => m.status === 'LIVE').map(match => (
@@ -241,6 +244,21 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   matches.filter(m => m.status === 'UPCOMING').map(match => (
+                    isMobile 
+                      ? <MobileOddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                      : <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
+                  ))
+                )}
+              </TabsContent>
+
+              <TabsContent value="recent" className="space-y-3 mt-4">
+                {matches.filter(m => m.status === 'FINISHED').length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
+                    <p className="text-lg font-medium">No recent matches</p>
+                    <p className="text-sm mt-2">Check back later for results</p>
+                  </div>
+                ) : (
+                  matches.filter(m => m.status === 'FINISHED').map(match => (
                     isMobile 
                       ? <MobileOddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
                       : <OddsCard key={match.id} matchId={match.id} onBetSelect={handleBetSelect} />
