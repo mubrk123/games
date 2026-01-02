@@ -407,8 +407,7 @@ export default function MatchDetail() {
                                   market.status === 'OPEN' && "bg-green-500/20 text-green-400"
                                 )}
                               >
-                                <Clock className="h-3 w-3 mr-1" />
-                                {getTimeRemaining(market.closeTime)}
+                                {market.status === 'OPEN' ? 'OPEN' : market.status}
                               </Badge>
                             </div>
                             <div className="grid grid-cols-4 gap-1">
