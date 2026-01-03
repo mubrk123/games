@@ -87,12 +87,12 @@ app.use((req, res, next) => {
 
   // Serve the app on the port specified in the environment variable PORT
   // Default to 5000 for Replit, can be overridden in .env for local dev
-  const port = parseInt(process.env.PORT || "5000", 10);
+  const port = parseInt(process.env.PORT || "3000", 10);
   httpServer.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
-    
+
     settlementService.start(240000);
-    
+
     setTimeout(() => {
       const sessionMw = getSessionMiddleware();
       if (sessionMw) {
