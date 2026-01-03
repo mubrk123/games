@@ -1,14 +1,16 @@
 import { Match, Runner } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { Clock, ChevronRight, Zap, TrendingUp, ExternalLink } from "lucide-react";
+import { Clock, ChevronRight, Zap, TrendingUp, ExternalLink, AlertTriangle, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { api, InstanceMarket, InstanceOutcome } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { wsClient } from "@/lib/websocket";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface MobileOddsCardProps {
   matchId: string;
@@ -19,32 +21,76 @@ interface MobileOddsCardProps {
 export function MobileOddsCard({ matchId, onBetSelect, onInstanceBetSelect }: MobileOddsCardProps) {
   const match = useStore(state => state.matches.find(m => m.id === matchId));
   const [isExpanded, setIsExpanded] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+  const [blinkingOdds, setBlinkingOdds] = useState<Record<string, 'up' | 'down' | null>>({});
+  const [marketSuspended, setMarketSuspended] = useState(false);
+  const [liveScore, setLiveScore] = useState<{ home?: string; away?: string; details?: string } | null>(null);
+  const prevOddsRef = useRef<Record<string, { back: number; lay: number }>>({});
   const [, navigate] = useLocation();
 
-  const { data: instanceData } = useQuery({
+  const { data: instanceData, refetch: refetchInstance } = useQuery({
     queryKey: ['instance-markets', matchId],
     queryFn: () => api.getInstanceMarkets(matchId, match?.sport || 'cricket', match?.homeTeam, match?.awayTeam),
-    refetchInterval: 30000,
-    staleTime: 20000,
+    refetchInterval: 15000,
+    staleTime: 10000,
     enabled: !!match && match.status === 'LIVE' && match.sport === 'cricket',
   });
 
   const instanceMarkets = instanceData?.markets || [];
 
   useEffect(() => {
+    if (match?.status === 'LIVE') {
+      wsClient.connect();
+      wsClient.subscribeToMatch(matchId);
+
+      const unsubScore = wsClient.on('match:score', (data: any) => {
+        if (data.matchId === matchId) {
+          setLiveScore({ home: data.scoreHome, away: data.scoreAway, details: data.scoreDetails });
+          if (data.marketsSuspended !== undefined) {
+            setMarketSuspended(data.marketsSuspended);
+          }
+        }
+      });
+
+      const unsubMarket = wsClient.on('markets:update', (data: any) => {
+        if (data.matchId === matchId) {
+          setMarketSuspended(data.status === 'SUSPENDED');
+          if (data.status === 'OPEN') {
+            refetchInstance();
+          }
+        }
+      });
+
+      return () => {
+        unsubScore();
+        unsubMarket();
+        wsClient.unsubscribeFromMatch(matchId);
+      };
+    }
+  }, [matchId, match?.status, refetchInstance]);
+
+  useEffect(() => {
     const unsubscribe = useStore.subscribe((state, prevState) => {
-      const prevMatch = prevState.matches.find(m => m.id === matchId);
       const currMatch = state.matches.find(m => m.id === matchId);
       
-      if (prevMatch && currMatch && currMatch.markets[0]) {
-        currMatch.markets[0].runners.forEach((runner, idx) => {
-          const prevRunner = prevMatch.markets[0]?.runners[idx];
-          if (prevRunner && (runner.backOdds !== prevRunner.backOdds || runner.layOdds !== prevRunner.layOdds)) {
-            setLastUpdate(runner.id);
-            setTimeout(() => setLastUpdate(null), 500);
+      if (currMatch && currMatch.markets[0]) {
+        const newBlinking: Record<string, 'up' | 'down' | null> = {};
+        
+        currMatch.markets[0].runners.forEach((runner) => {
+          const prevOdds = prevOddsRef.current[runner.id];
+          if (prevOdds) {
+            if (runner.backOdds > prevOdds.back || runner.layOdds > prevOdds.lay) {
+              newBlinking[runner.id] = 'up';
+            } else if (runner.backOdds < prevOdds.back || runner.layOdds < prevOdds.lay) {
+              newBlinking[runner.id] = 'down';
+            }
           }
+          prevOddsRef.current[runner.id] = { back: runner.backOdds, lay: runner.layOdds };
         });
+        
+        if (Object.keys(newBlinking).length > 0) {
+          setBlinkingOdds(newBlinking);
+          setTimeout(() => setBlinkingOdds({}), 800);
+        }
       }
     });
     return unsubscribe;
@@ -63,25 +109,31 @@ export function MobileOddsCard({ matchId, onBetSelect, onInstanceBetSelect }: Mo
   const mainMarket = match.markets[0];
   if (!mainMarket) return null;
 
-  const score = match.scoreHome && match.scoreAway ? {
+  const displayScore = liveScore || (match.scoreHome && match.scoreAway ? {
     home: match.scoreHome,
     away: match.scoreAway,
     details: match.scoreDetails
-  } : undefined;
+  } : undefined);
+  
+  const isMarketOpen = mainMarket?.status === 'OPEN' && !marketSuspended;
 
   const isCricket = match.sport === 'cricket';
 
   return (
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-      <div className="bg-card rounded-xl border border-border/50 overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
-        <CollapsibleTrigger className="w-full text-left">
-          <div className="p-3">
+      <div className="bg-card rounded-xl border border-border/50 overflow-hidden shadow-sm">
+        <CollapsibleTrigger asChild>
+          <div className="p-3 cursor-pointer hover:bg-accent/30 transition-colors">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 {match.status === 'LIVE' ? (
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
-                  </span>
+                  <motion.span 
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold"
+                    animate={{ boxShadow: ['0 0 0 0 rgba(239,68,68,0)', '0 0 8px 2px rgba(239,68,68,0.5)', '0 0 0 0 rgba(239,68,68,0)'] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Activity className="w-3 h-3 animate-pulse" /> LIVE
+                  </motion.span>
                 ) : (
                   <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                     <Clock className="w-3 h-3" /> 
@@ -100,56 +152,129 @@ export function MobileOddsCard({ matchId, onBetSelect, onInstanceBetSelect }: Mo
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-sm">{match.homeTeam}</span>
-                {score && <span className="font-mono font-bold text-primary text-sm">{score.home}</span>}
+                {displayScore?.home && (
+                  <motion.span 
+                    key={displayScore.home}
+                    initial={{ scale: 1.2, color: '#22c55e' }}
+                    animate={{ scale: 1, color: 'var(--primary)' }}
+                    className="font-mono font-bold text-primary text-sm"
+                  >
+                    {displayScore.home}
+                  </motion.span>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <span className="font-medium text-sm">{match.awayTeam}</span>
-                {score && <span className="font-mono font-bold text-primary text-sm">{score.away}</span>}
+                {displayScore?.away && (
+                  <motion.span 
+                    key={displayScore.away}
+                    initial={{ scale: 1.2, color: '#22c55e' }}
+                    animate={{ scale: 1, color: 'var(--primary)' }}
+                    className="font-mono font-bold text-primary text-sm"
+                  >
+                    {displayScore.away}
+                  </motion.span>
+                )}
               </div>
-              {score?.details && (
-                <p className="text-[11px] text-muted-foreground mt-1">{score.details}</p>
+              {displayScore?.details && (
+                <motion.p 
+                  key={displayScore.details}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-[11px] text-muted-foreground mt-1"
+                >
+                  {displayScore.details}
+                </motion.p>
               )}
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-1 px-2 pb-2">
-            {mainMarket.runners.slice(0, 2).map(runner => (
-              <div key={runner.id} className="grid grid-cols-2 gap-1">
-                <Button 
-                  data-testid={`button-back-${runner.id}`}
-                  variant="ghost" 
-                  className={cn(
-                    "h-12 rounded-lg flex flex-col items-center justify-center gap-0 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 p-1",
-                    lastUpdate === runner.id && "ring-2 ring-blue-500 bg-blue-500/30"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onBetSelect(match, runner, 'BACK', runner.backOdds);
-                  }}
-                >
-                  <span className="text-[10px] text-muted-foreground truncate w-full text-center">{runner.name.split(' ')[0]}</span>
-                  <span className="font-bold text-blue-400 text-base">{runner.backOdds.toFixed(2)}</span>
-                </Button>
-
-                <Button 
-                  data-testid={`button-lay-${runner.id}`}
-                  variant="ghost" 
-                  className={cn(
-                    "h-12 rounded-lg flex flex-col items-center justify-center gap-0 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 p-1",
-                    lastUpdate === runner.id && "ring-2 ring-pink-500 bg-pink-500/30"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onBetSelect(match, runner, 'LAY', runner.layOdds);
-                  }}
-                >
-                  <span className="text-[10px] text-muted-foreground truncate w-full text-center">{runner.name.split(' ')[0]}</span>
-                  <span className="font-bold text-pink-400 text-base">{runner.layOdds.toFixed(2)}</span>
-                </Button>
-              </div>
-            ))}
-          </div>
         </CollapsibleTrigger>
+
+        {marketSuspended && (
+          <div className="mx-2 mb-2 flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-yellow-500/20 border border-yellow-500/30">
+            <AlertTriangle className="w-4 h-4 text-yellow-500 animate-pulse" />
+            <span className="text-xs font-bold text-yellow-500">MARKET SUSPENDED</span>
+          </div>
+        )}
+        
+        <div className="grid grid-cols-2 gap-1 px-2 pb-2">
+          {mainMarket.runners.slice(0, 2).map(runner => {
+            const blinkState = blinkingOdds[runner.id];
+            return (
+              <div key={runner.id} className="grid grid-cols-2 gap-1">
+                <motion.div
+                  animate={blinkState === 'up' ? { scale: [1, 1.05, 1], backgroundColor: ['rgba(59,130,246,0.1)', 'rgba(34,197,94,0.4)', 'rgba(59,130,246,0.1)'] } : 
+                           blinkState === 'down' ? { scale: [1, 1.05, 1], backgroundColor: ['rgba(59,130,246,0.1)', 'rgba(239,68,68,0.4)', 'rgba(59,130,246,0.1)'] } : {}}
+                  transition={{ duration: 0.6 }}
+                >
+                  <Button 
+                    data-testid={`button-back-${runner.id}`}
+                    variant="ghost" 
+                    disabled={!isMarketOpen}
+                    className={cn(
+                      "h-12 w-full rounded-lg flex flex-col items-center justify-center gap-0 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 p-1 transition-all",
+                      blinkState === 'up' && "ring-2 ring-green-500 shadow-green-500/50 shadow-lg",
+                      blinkState === 'down' && "ring-2 ring-red-500 shadow-red-500/50 shadow-lg",
+                      !isMarketOpen && "opacity-50 cursor-not-allowed"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isMarketOpen) onBetSelect(match, runner, 'BACK', runner.backOdds);
+                    }}
+                  >
+                    <span className="text-[10px] text-muted-foreground truncate w-full text-center">{runner.name.split(' ')[0]}</span>
+                    <motion.span 
+                      key={runner.backOdds}
+                      initial={blinkState ? { scale: 1.3 } : false}
+                      animate={{ scale: 1 }}
+                      className={cn(
+                        "font-bold text-base transition-colors",
+                        blinkState === 'up' ? "text-green-400" : blinkState === 'down' ? "text-red-400" : "text-blue-400"
+                      )}
+                    >
+                      {runner.backOdds.toFixed(2)}
+                    </motion.span>
+                  </Button>
+                </motion.div>
+
+                <motion.div
+                  animate={blinkState === 'up' ? { scale: [1, 1.05, 1], backgroundColor: ['rgba(236,72,153,0.1)', 'rgba(34,197,94,0.4)', 'rgba(236,72,153,0.1)'] } : 
+                           blinkState === 'down' ? { scale: [1, 1.05, 1], backgroundColor: ['rgba(236,72,153,0.1)', 'rgba(239,68,68,0.4)', 'rgba(236,72,153,0.1)'] } : {}}
+                  transition={{ duration: 0.6 }}
+                >
+                  <Button 
+                    data-testid={`button-lay-${runner.id}`}
+                    variant="ghost" 
+                    disabled={!isMarketOpen}
+                    className={cn(
+                      "h-12 w-full rounded-lg flex flex-col items-center justify-center gap-0 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 p-1 transition-all",
+                      blinkState === 'up' && "ring-2 ring-green-500 shadow-green-500/50 shadow-lg",
+                      blinkState === 'down' && "ring-2 ring-red-500 shadow-red-500/50 shadow-lg",
+                      !isMarketOpen && "opacity-50 cursor-not-allowed"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isMarketOpen) onBetSelect(match, runner, 'LAY', runner.layOdds);
+                    }}
+                  >
+                    <span className="text-[10px] text-muted-foreground truncate w-full text-center">{runner.name.split(' ')[0]}</span>
+                    <motion.span 
+                      key={runner.layOdds}
+                      initial={blinkState ? { scale: 1.3 } : false}
+                      animate={{ scale: 1 }}
+                      className={cn(
+                        "font-bold text-base transition-colors",
+                        blinkState === 'up' ? "text-green-400" : blinkState === 'down' ? "text-red-400" : "text-pink-400"
+                      )}
+                    >
+                      {runner.layOdds.toFixed(2)}
+                    </motion.span>
+                  </Button>
+                </motion.div>
+              </div>
+            );
+          })}
+        </div>
 
         <CollapsibleContent>
           <div className="border-t border-border/50 p-3 space-y-3 bg-muted/20">

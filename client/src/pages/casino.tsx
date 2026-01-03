@@ -72,8 +72,8 @@ export default function Casino() {
         )}
 
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+            {[1, 2, 3, 4].map((i) => (
               <div key={i} className="aspect-[4/3] rounded-xl bg-card/50 animate-pulse" />
             ))}
           </div>
@@ -82,7 +82,7 @@ export default function Casino() {
             <p className="text-muted-foreground">No games available</p>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {games.map((game) => (
               <GameCard key={game.id} game={game} disabled={!currentUser} />
             ))}
@@ -112,41 +112,43 @@ function GameCard({ game, disabled }: { game: CasinoGame; disabled: boolean }) {
   return (
     <Link href={disabled ? "#" : `/casino/${game.slug}`}>
       <Card 
-        className={`group relative overflow-hidden cursor-pointer border-border/50 hover:border-primary/50 transition-all shadow-lg hover:shadow-primary/20 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+        className={`group relative overflow-hidden cursor-pointer border-border/50 hover:border-primary/50 transition-all duration-300 shadow-lg hover:shadow-primary/20 hover:scale-[1.02] ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
         data-testid={`game-card-${game.slug}`}
       >
         <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-90`} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
         
-        <div className="relative p-6 flex flex-col h-full min-h-[200px]">
+        <div className="relative p-3 sm:p-4 md:p-6 flex flex-col h-full min-h-[160px] sm:min-h-[180px] md:min-h-[200px]">
           <div className="flex items-center justify-between mb-auto">
-            <div className="p-3 rounded-xl bg-white/10 backdrop-blur-sm">
-              {icon}
+            <div className="p-2 sm:p-3 rounded-xl bg-white/10 backdrop-blur-sm">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center">
+                {icon}
+              </div>
             </div>
-            <Badge variant="secondary" className="bg-white/20 text-white border-0">
-              {game.type.toUpperCase()}
+            <Badge variant="secondary" className="bg-white/20 text-white border-0 text-[10px] sm:text-xs px-1.5 sm:px-2">
+              {game.type.replace('_', ' ').toUpperCase()}
             </Badge>
           </div>
           
           <div className="mt-auto">
-            <h3 className="text-xl font-heading font-bold text-white mb-1">
+            <h3 className="text-base sm:text-lg md:text-xl font-heading font-bold text-white mb-0.5 sm:mb-1 truncate">
               {game.name}
             </h3>
-            <p className="text-sm text-white/70 mb-4 line-clamp-2">
+            <p className="text-xs sm:text-sm text-white/70 mb-2 sm:mb-4 line-clamp-1 sm:line-clamp-2">
               {game.description}
             </p>
             
             <div className="flex items-center justify-between">
-              <div className="text-xs text-white/60">
-                <span>Min: ₹{parseFloat(game.minBet).toFixed(0)}</span>
-                <span className="mx-2">•</span>
-                <span>Max: ₹{parseFloat(game.maxBet).toLocaleString()}</span>
+              <div className="text-[10px] sm:text-xs text-white/60">
+                <span>₹{parseFloat(game.minBet).toFixed(0)}</span>
+                <span className="mx-1 sm:mx-2">-</span>
+                <span>₹{parseFloat(game.maxBet).toLocaleString()}</span>
               </div>
               <Button 
                 size="sm" 
-                className="gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="gap-1 sm:gap-2 h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <Play className="w-4 h-4" /> Play
+                <Play className="w-3 h-3 sm:w-4 sm:h-4" /> Play
               </Button>
             </div>
           </div>

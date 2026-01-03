@@ -114,7 +114,7 @@ export default function Dashboard() {
     <AppShell>
       <div className="grid grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
         {/* Main Content - Matches */}
-        <div className="col-span-12 lg:col-span-9 flex flex-col gap-6 overflow-y-auto pr-2 pb-20">
+        <div className="col-span-12 lg:col-span-9 flex flex-col gap-4 overflow-y-auto overflow-x-hidden pr-2 pb-20">
           
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <h2 className="text-2xl font-heading font-bold flex items-center gap-2">
@@ -155,45 +155,45 @@ export default function Dashboard() {
           </div>
 
           {/* Sport Filter Badges */}
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="sticky top-0 z-20 bg-background py-3 flex gap-3 overflow-x-auto scrollbar-hide">
             <Badge 
               variant="outline" 
-              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'all' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              className={`cursor-pointer whitespace-nowrap flex-shrink-0 px-4 py-2 text-sm ${selectedSport === 'all' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'}`}
               onClick={() => setSelectedSport('all')}
             >
               All
             </Badge>
             <Badge 
               variant="outline" 
-              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'cricket_all' || selectedSport === 'cricket' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              className={`cursor-pointer whitespace-nowrap flex-shrink-0 px-4 py-2 text-sm ${selectedSport === 'cricket_all' || selectedSport === 'cricket' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'}`}
               onClick={() => setSelectedSport('cricket_all')}
             >
               Cricket
             </Badge>
             <Badge 
               variant="outline" 
-              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'soccer_epl' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              className={`cursor-pointer whitespace-nowrap flex-shrink-0 px-4 py-2 text-sm ${selectedSport === 'soccer_epl' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'}`}
               onClick={() => setSelectedSport('soccer_epl')}
             >
               Football
             </Badge>
             <Badge 
               variant="outline" 
-              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'basketball_nba' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              className={`cursor-pointer whitespace-nowrap flex-shrink-0 px-4 py-2 text-sm ${selectedSport === 'basketball_nba' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'}`}
               onClick={() => setSelectedSport('basketball_nba')}
             >
               Basketball
             </Badge>
             <Badge 
               variant="outline" 
-              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'icehockey_nhl' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              className={`cursor-pointer whitespace-nowrap flex-shrink-0 px-4 py-2 text-sm ${selectedSport === 'icehockey_nhl' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'}`}
               onClick={() => setSelectedSport('icehockey_nhl')}
             >
               Hockey
             </Badge>
             <Badge 
               variant="outline" 
-              className={`cursor-pointer whitespace-nowrap ${selectedSport === 'americanfootball_nfl' ? 'bg-primary/20 text-primary border-primary' : 'hover:bg-accent'}`}
+              className={`cursor-pointer whitespace-nowrap flex-shrink-0 px-4 py-2 text-sm ${selectedSport === 'americanfootball_nfl' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'}`}
               onClick={() => setSelectedSport('americanfootball_nfl')}
             >
               NFL
