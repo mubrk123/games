@@ -28,7 +28,14 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 3,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+  ssl: process.env.NODE_ENV === "production"
+    ? { rejectUnauthorized: false }
+    : false,
 });
+
 
 export const db = drizzle(pool, { schema });
 
@@ -351,7 +358,7 @@ export class DatabaseStorage implements IStorage {
     const betsWon = allBets.filter(b => b.status === 'WON').length;
     const betsLost = allBets.filter(b => b.status === 'LOST').length;
     const totalBetAmount = allBets.reduce((sum, b) => sum + parseFloat(b.stake?.toString() || '0'), 0);
-    const totalWinnings = allBets.filter(b => b.status === 'WON').reduce((sum, b) => sum + parseFloat(b.potentialProfit?.toString() || b.potentialWin?.toString() || '0'), 0);
+    const totalWinnings = allBets.filter(b => b.status === 'WON').reduce((sum, b) => sum + parseFloat(b.potentialProfit?.toString() ||'0'), 0);
 
     // Get casino bets from database
     const casinoBetsResult = await db.select().from(schema.casinoBets)
