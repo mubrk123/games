@@ -122,10 +122,6 @@ export default function Login() {
                 {isLoading ? "Logging in..." : "Login"}
               </Button>
 
-              <div className="text-xs text-center text-muted-foreground space-y-1">
-                <div>Demo user: <span className="font-mono text-primary">demo / demo123</span></div>
-                <div>Admin: <span className="font-mono text-orange-500">admin / admin123</span></div>
-              </div>
             </form>
           </CardContent>
         </Card>
