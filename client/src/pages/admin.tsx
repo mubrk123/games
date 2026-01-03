@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, Users, Wallet, Activity, AlertTriangle, UserPlus, Crown, ArrowRightLeft } from "lucide-react";
+import { ShieldCheck, Users, Wallet, Activity, AlertTriangle, UserPlus, Crown, ArrowRightLeft, Eye, TrendingUp, TrendingDown } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@/lib/store";
@@ -26,8 +27,19 @@ export default function AdminPanel() {
   const [selectedUserId, setSelectedUserId] = useState("");
   const [addBalanceAmount, setAddBalanceAmount] = useState("");
   const [selectedAdminId, setSelectedAdminId] = useState("");
+  const [activityDialogOpen, setActivityDialogOpen] = useState(false);
+  const [selectedActivityUserId, setSelectedActivityUserId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: activityData, isLoading: activityLoading } = useQuery({
+    queryKey: ['user-activity', selectedActivityUserId],
+    queryFn: async () => {
+      if (!selectedActivityUserId) return null;
+      return await api.getUserActivity(selectedActivityUserId);
+    },
+    enabled: !!selectedActivityUserId && activityDialogOpen,
+  });
 
   const { data: adminsData, isLoading: adminsLoading } = useQuery({
     queryKey: ['super-admin-admins'],
@@ -374,13 +386,14 @@ export default function AdminPanel() {
               </Card>
               <Card className="bg-card/50 border-green-500/20">
                 <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Admin Balance</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Network Balance</CardTitle>
                   <Wallet className="w-4 h-4 text-green-500" />
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
                   <div className="text-xl sm:text-2xl font-bold font-mono text-green-500 truncate" data-testid="stat-admin-balance">
-                    ₹{totalAdminBalance.toLocaleString()}
+                    ₹{(totalAdminBalance + totalUserBalance).toLocaleString()}
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">Admins + Users</p>
                 </CardContent>
               </Card>
             </>
@@ -556,12 +569,13 @@ export default function AdminPanel() {
                   <TableHead>Balance</TableHead>
                   <TableHead>Exposure</TableHead>
                   <TableHead>W/L</TableHead>
+                  <TableHead className="w-16"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {clientUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">No users created yet</TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">No users created yet</TableCell>
                   </TableRow>
                 ) : (
                   clientUsers.map(u => (
@@ -575,6 +589,20 @@ export default function AdminPanel() {
                       </TableCell>
                       <TableCell className="font-mono text-sm">
                         <span className="text-green-500">{u.wonBets || 0}W</span> / <span className="text-red-500">{u.lostBets || 0}L</span>
+                      </TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          data-testid={`view-activity-${u.username}`}
+                          onClick={() => {
+                            setSelectedActivityUserId(u.id);
+                            setActivityDialogOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -635,6 +663,169 @@ export default function AdminPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {/* User Activity Dialog */}
+      <Dialog open={activityDialogOpen} onOpenChange={setActivityDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              User Activity History
+            </DialogTitle>
+            <DialogDescription>
+              {clientUsers.find(u => u.id === selectedActivityUserId)?.username}'s betting and casino history
+            </DialogDescription>
+          </DialogHeader>
+          
+          {activityLoading ? (
+            <div className="py-8 text-center text-muted-foreground">Loading activity...</div>
+          ) : activityData ? (
+            <ScrollArea className="h-[60vh]">
+              <div className="space-y-6 pr-4">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-card/50 rounded-lg p-3 border">
+                    <div className="text-xs text-muted-foreground mb-1">Sports Bets</div>
+                    <div className="text-lg font-bold">{activityData.summary.totalBets}</div>
+                    <div className="text-xs mt-1">
+                      <span className="text-green-500">{activityData.summary.betsWon}W</span>
+                      {' / '}
+                      <span className="text-red-500">{activityData.summary.betsLost}L</span>
+                    </div>
+                  </div>
+                  <div className="bg-card/50 rounded-lg p-3 border">
+                    <div className="text-xs text-muted-foreground mb-1">Total Staked</div>
+                    <div className="text-lg font-bold font-mono">₹{activityData.summary.totalBetAmount.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-card/50 rounded-lg p-3 border">
+                    <div className="text-xs text-muted-foreground mb-1">Casino Bets</div>
+                    <div className="text-lg font-bold">{activityData.summary.totalCasinoBets}</div>
+                    <div className="text-xs mt-1">
+                      <span className="text-green-500">{activityData.summary.casinoWon}W</span>
+                      {' / '}
+                      <span className="text-red-500">{activityData.summary.casinoLost}L</span>
+                    </div>
+                  </div>
+                  <div className="bg-card/50 rounded-lg p-3 border">
+                    <div className="text-xs text-muted-foreground mb-1">Casino Wagered</div>
+                    <div className="text-lg font-bold font-mono">₹{activityData.summary.totalCasinoWagered.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Recent Bets */}
+                <div>
+                  <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-blue-500" />
+                    Recent Sports Bets
+                  </h4>
+                  {activityData.bets.length === 0 && activityData.instanceBets.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No sports bets placed</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {[...activityData.bets, ...activityData.instanceBets]
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                        .slice(0, 15)
+                        .map((bet: any, idx: number) => (
+                          <div key={bet.id || idx} className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-card/30">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                                bet.type === 'BACK' ? 'bg-blue-500 text-white' : 
+                                bet.type === 'LAY' ? 'bg-pink-500 text-white' :
+                                'bg-purple-500 text-white'
+                              }`}>
+                                {bet.type || bet.marketType || 'BET'}
+                              </span>
+                              <span className="text-muted-foreground text-xs truncate max-w-32">
+                                {bet.marketName || 'Match Bet'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-xs">₹{(bet.stake ?? 0).toLocaleString()}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                bet.status === 'WON' ? 'bg-green-500/20 text-green-500' : 
+                                bet.status === 'LOST' ? 'bg-red-500/20 text-red-500' : 
+                                'bg-yellow-500/20 text-yellow-500'
+                              }`}>
+                                {bet.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Casino History */}
+                <div>
+                  <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4 text-purple-500" />
+                    Recent Casino Plays
+                  </h4>
+                  {activityData.casinoBets.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No casino games played</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {activityData.casinoBets.slice(0, 15).map((bet: any, idx: number) => (
+                        <div key={bet.id || idx} className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-card/30">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-purple-500 text-white">
+                              CASINO
+                            </span>
+                            <span className="text-muted-foreground text-xs">
+                              {bet.betChoice || 'Game'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-xs">₹{(bet.betAmount ?? 0).toLocaleString()}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${
+                              bet.isWin ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'
+                            }`}>
+                              {bet.isWin ? 'WON' : 'LOST'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Transaction History */}
+                <div>
+                  <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                    <ArrowRightLeft className="h-4 w-4 text-green-500" />
+                    Recent Transactions
+                  </h4>
+                  {activityData.transactions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No transactions</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {activityData.transactions.slice(0, 10).map((tx: any, idx: number) => (
+                        <div key={tx.id || idx} className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-card/30">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                              tx.type === 'CREDIT' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                            }`}>
+                              {tx.type}
+                            </span>
+                            <span className="text-muted-foreground text-xs truncate max-w-40">
+                              {tx.description}
+                            </span>
+                          </div>
+                          <span className={`font-mono text-xs ${tx.type === 'CREDIT' ? 'text-green-500' : 'text-red-500'}`}>
+                            {tx.type === 'CREDIT' ? '+' : '-'}₹{Math.abs(tx.amount ?? 0).toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="py-8 text-center text-muted-foreground">No activity data</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

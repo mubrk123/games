@@ -43,7 +43,7 @@ export function MobileHeader() {
                     <div>
                       <p className="font-medium text-sm">{currentUser.username}</p>
                       <p className="text-xs text-muted-foreground">
-                        {currentUser.currency} {currentUser.balance.toLocaleString()}
+                        {currentUser.role === 'SUPER_ADMIN' ? 'Super Admin' : `${currentUser.currency} ${currentUser.balance.toLocaleString()}`}
                       </p>
                     </div>
                   </div>
@@ -78,12 +78,17 @@ export function MobileHeader() {
         </div>
 
         <div className="flex items-center gap-1">
-          {currentUser && (
+          {currentUser && currentUser.role !== 'SUPER_ADMIN' && (
             <div className="flex items-center gap-1.5 bg-primary/10 rounded-full px-3 py-1.5 mr-1">
               <Wallet className="h-3.5 w-3.5 text-primary" />
               <span className="text-xs font-bold text-primary">
                 {currentUser.currency} {currentUser.balance.toLocaleString()}
               </span>
+            </div>
+          )}
+          {currentUser && currentUser.role === 'SUPER_ADMIN' && (
+            <div className="flex items-center gap-1.5 bg-purple-500/20 rounded-full px-3 py-1.5 mr-1">
+              <span className="text-xs font-bold text-purple-400">SUPER ADMIN</span>
             </div>
           )}
           <Button variant="ghost" size="icon" className="h-9 w-9" data-testid="button-search">

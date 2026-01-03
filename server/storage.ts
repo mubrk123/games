@@ -76,6 +76,23 @@ export interface IStorage {
   getUserInstanceBets(userId: string): Promise<InstanceBet[]>;
   settleInstanceBet(betId: string, status: 'WON' | 'LOST' | 'VOID', winningOutcome: string): Promise<InstanceBet | undefined>;
   
+  // Casino Bet Operations
+  getUserCasinoBets(userId: string): Promise<any[]>;
+  
+  // User Activity Summary
+  getUserActivitySummary(userId: string): Promise<{
+    totalBets: number;
+    betsWon: number;
+    betsLost: number;
+    totalBetAmount: number;
+    totalWinnings: number;
+    totalCasinoBets: number;
+    casinoWon: number;
+    casinoLost: number;
+    totalCasinoWagered: number;
+    totalCasinoWinnings: number;
+  }>;
+  
   // Withdrawal Request Operations
   createWithdrawalRequest(request: InsertWithdrawalRequest): Promise<WithdrawalRequest>;
   getUserWithdrawalRequests(userId: string): Promise<WithdrawalRequest[]>;
@@ -305,6 +322,58 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.instanceBets.id, betId))
       .returning();
     return result[0];
+  }
+
+  // Casino Bet Operations
+  async getUserCasinoBets(userId: string): Promise<any[]> {
+    return await db.select().from(schema.casinoBets)
+      .where(eq(schema.casinoBets.userId, userId))
+      .orderBy(desc(schema.casinoBets.createdAt));
+  }
+
+  // User Activity Summary
+  async getUserActivitySummary(userId: string): Promise<{
+    totalBets: number;
+    betsWon: number;
+    betsLost: number;
+    totalBetAmount: number;
+    totalWinnings: number;
+    totalCasinoBets: number;
+    casinoWon: number;
+    casinoLost: number;
+    totalCasinoWagered: number;
+    totalCasinoWinnings: number;
+  }> {
+    const bets = await this.getUserBets(userId);
+    const instanceBets = await this.getUserInstanceBets(userId);
+    
+    const allBets = [...bets, ...instanceBets];
+    const betsWon = allBets.filter(b => b.status === 'WON').length;
+    const betsLost = allBets.filter(b => b.status === 'LOST').length;
+    const totalBetAmount = allBets.reduce((sum, b) => sum + parseFloat(b.stake?.toString() || '0'), 0);
+    const totalWinnings = allBets.filter(b => b.status === 'WON').reduce((sum, b) => sum + parseFloat(b.potentialProfit?.toString() || b.potentialWin?.toString() || '0'), 0);
+
+    // Get casino bets from database
+    const casinoBetsResult = await db.select().from(schema.casinoBets)
+      .where(eq(schema.casinoBets.userId, userId));
+    
+    const casinoWon = casinoBetsResult.filter(b => b.isWin === true).length;
+    const casinoLost = casinoBetsResult.filter(b => b.isWin === false).length;
+    const totalCasinoWagered = casinoBetsResult.reduce((sum, b) => sum + parseFloat(b.betAmount?.toString() || '0'), 0);
+    const totalCasinoWinnings = casinoBetsResult.filter(b => b.isWin === true).reduce((sum, b) => sum + parseFloat(b.payout?.toString() || '0'), 0);
+
+    return {
+      totalBets: allBets.length,
+      betsWon,
+      betsLost,
+      totalBetAmount,
+      totalWinnings,
+      totalCasinoBets: casinoBetsResult.length,
+      casinoWon,
+      casinoLost,
+      totalCasinoWagered,
+      totalCasinoWinnings
+    };
   }
 
   // Withdrawal Request Operations

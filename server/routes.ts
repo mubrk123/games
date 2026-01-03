@@ -206,6 +206,61 @@ export async function registerRoutes(
     }
   });
 
+  // Get user activity summary (Admin only)
+  app.get("/api/admin/users/:id/activity", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const activity = await storage.getUserActivitySummary(id);
+      const bets = await storage.getUserBets(id);
+      const instanceBets = await storage.getUserInstanceBets(id);
+      const casinoBets = await storage.getUserCasinoBets(id);
+      const transactions = await storage.getUserTransactions(id);
+
+      // Normalize data - convert string fields to numbers
+      const normalizedBets = bets.slice(0, 50).map(bet => ({
+        ...bet,
+        stake: parseFloat(bet.stake?.toString() || '0') || 0,
+        odds: parseFloat(bet.odds?.toString() || '0') || 0,
+        potentialProfit: parseFloat(bet.potentialProfit?.toString() || '0') || 0,
+      }));
+
+      const normalizedInstanceBets = instanceBets.slice(0, 50).map(bet => ({
+        ...bet,
+        stake: parseFloat(bet.stake?.toString() || '0') || 0,
+        odds: parseFloat(bet.odds?.toString() || '0') || 0,
+        potentialProfit: parseFloat(bet.potentialProfit?.toString() || '0') || 0,
+      }));
+
+      const normalizedCasinoBets = casinoBets.slice(0, 50).map(bet => ({
+        ...bet,
+        betAmount: parseFloat(bet.betAmount?.toString() || '0') || 0,
+        payout: parseFloat(bet.payout?.toString() || '0') || 0,
+        profit: parseFloat(bet.profit?.toString() || '0') || 0,
+      }));
+
+      const normalizedTransactions = transactions.slice(0, 50).map(tx => ({
+        ...tx,
+        amount: parseFloat(tx.amount?.toString() || '0') || 0,
+      }));
+
+      res.json({
+        summary: activity,
+        bets: normalizedBets,
+        instanceBets: normalizedInstanceBets,
+        casinoBets: normalizedCasinoBets,
+        transactions: normalizedTransactions,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get all bets (Admin only)
   app.get("/api/admin/bets", requireAdmin, async (req, res) => {
     try {

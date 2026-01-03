@@ -152,6 +152,27 @@ class ApiClient {
     return this.request('/admin/bets');
   }
 
+  async getUserActivity(userId: string): Promise<{
+    summary: {
+      totalBets: number;
+      betsWon: number;
+      betsLost: number;
+      totalBetAmount: number;
+      totalWinnings: number;
+      totalCasinoBets: number;
+      casinoWon: number;
+      casinoLost: number;
+      totalCasinoWagered: number;
+      totalCasinoWinnings: number;
+    };
+    bets: any[];
+    instanceBets: any[];
+    casinoBets: any[];
+    transactions: any[];
+  }> {
+    return this.request(`/admin/users/${userId}/activity`);
+  }
+
   // ============================================
   // Super Admin - Admin Management
   // ============================================

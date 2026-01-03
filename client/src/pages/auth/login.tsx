@@ -50,8 +50,9 @@ export default function Login() {
         className: "bg-green-600 text-white border-none"
       });
 
-      // Redirect based on role
-      setLocation(user.role === 'ADMIN' ? '/admin' : '/');
+      // Redirect based on role - Admins and Super Admins go to admin panel
+      const isAdminRole = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
+      setLocation(isAdminRole ? '/admin' : '/');
     } catch (error: any) {
       toast({
         title: "Login Failed",
