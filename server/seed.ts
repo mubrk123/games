@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { storage, db } from "./storage";
 import { casinoGames } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -284,6 +285,60 @@ async function seed() {
         minBet: "10",
         maxBet: "10000",
         houseEdge: "0.027",
+      },
+      {
+        name: "Blackjack",
+        slug: "blackjack",
+        type: "blackjack" as const,
+        description: "Beat the dealer with a hand closer to 21 without going over!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.005",
+      },
+      {
+        name: "Hi-Lo",
+        slug: "hi-lo",
+        type: "hi_lo" as const,
+        description: "Predict if the next card will be higher or lower!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.03",
+      },
+      {
+        name: "Dragon Tiger",
+        slug: "dragon-tiger",
+        type: "dragon_tiger" as const,
+        description: "Fast-paced card game. Bet on Dragon, Tiger, or Tie!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.035",
+      },
+      {
+        name: "Plinko",
+        slug: "plinko",
+        type: "plinko" as const,
+        description: "Drop the ball and watch it bounce to multiply your bet!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.01",
+      },
+      {
+        name: "Wheel of Fortune",
+        slug: "wheel-of-fortune",
+        type: "wheel" as const,
+        description: "Spin the wheel and win up to 50x your bet!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.05",
+      },
+      {
+        name: "Mines",
+        slug: "mines",
+        type: "mines" as const,
+        description: "Reveal gems and avoid mines to multiply your winnings!",
+        minBet: "10",
+        maxBet: "10000",
+        houseEdge: "0.01",
       },
     ];
 

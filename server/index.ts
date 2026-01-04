@@ -6,6 +6,7 @@ import { createServer } from "http";
 import { settlementService } from "./settlementService";
 import { realtimeHub } from "./realtimeHub";
 import { liveMatchTracker } from "./liveMatchTracker";
+import { instanceSettlementService } from "./instanceSettlementService";
 import { getSessionMiddleware } from "./auth";
 
 const app = express();
@@ -87,7 +88,7 @@ app.use((req, res, next) => {
 
   // Serve the app on the port specified in the environment variable PORT
   // Default to 5000 for Replit, can be overridden in .env for local dev
-  const port = parseInt(process.env.PORT || "5000", 10);
+  const port = parseInt(process.env.PORT || "3000", 10);
   httpServer.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
 
@@ -98,7 +99,8 @@ app.use((req, res, next) => {
       if (sessionMw) {
         realtimeHub.initialize(httpServer, sessionMw);
         liveMatchTracker.start();
-        log("WebSocket and LiveMatchTracker started");
+        instanceSettlementService.start(10000); // Check for settlements every 10 seconds
+        log("WebSocket, LiveMatchTracker, and InstanceSettlementService started");
       }
     }, 100);
   });

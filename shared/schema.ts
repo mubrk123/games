@@ -10,7 +10,7 @@ export const betStatusEnum = pgEnum('bet_status', ['OPEN', 'WON', 'LOST', 'VOID'
 export const matchStatusEnum = pgEnum('match_status', ['LIVE', 'UPCOMING', 'FINISHED']);
 export const marketStatusEnum = pgEnum('market_status', ['OPEN', 'SUSPENDED', 'CLOSED']);
 export const sportEnum = pgEnum('sport', ['cricket', 'football', 'tennis', 'basketball']);
-export const casinoGameTypeEnum = pgEnum('casino_game_type', ['slots', 'crash', 'dice', 'roulette', 'blackjack', 'andar_bahar', 'teen_patti', 'lucky_7']);
+export const casinoGameTypeEnum = pgEnum('casino_game_type', ['slots', 'crash', 'dice', 'roulette', 'blackjack', 'andar_bahar', 'teen_patti', 'lucky_7', 'hi_lo', 'dragon_tiger', 'plinko', 'wheel', 'mines']);
 export const casinoRoundStatusEnum = pgEnum('casino_round_status', ['PENDING', 'ACTIVE', 'COMPLETED']);
 export const instanceBetStatusEnum = pgEnum('instance_bet_status', ['OPEN', 'WON', 'LOST', 'VOID']);
 export const instanceMarketTypeEnum = pgEnum('instance_market_type', ['NEXT_BALL', 'NEXT_OVER', 'SESSION']);
@@ -158,6 +158,10 @@ export const instanceBets = pgTable("instance_bets", {
   potentialProfit: decimal("potential_profit", { precision: 10, scale: 2 }).notNull(),
   status: instanceBetStatusEnum("status").notNull().default('OPEN'),
   winningOutcome: text("winning_outcome"),
+  // Ball/Over tracking for settlement even if in-memory market is lost
+  overNumber: integer("over_number"),
+  ballNumber: integer("ball_number"),
+  inningNumber: integer("inning_number").default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   settledAt: timestamp("settled_at"),
 });

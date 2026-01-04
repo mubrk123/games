@@ -869,6 +869,896 @@ export class CasinoService {
       nonce,
     };
   }
+
+  // Blackjack - simplified single-round version (auto-play)
+  async playBlackjack(userId: string, betAmount: number, clientSeed?: string) {
+    const game = await this.getGameBySlug('blackjack');
+    if (!game) throw new Error('Game not found');
+
+    const minBet = parseFloat(game.minBet);
+    const maxBet = parseFloat(game.maxBet);
+    if (betAmount < minBet || betAmount > maxBet) {
+      throw new Error(`Bet must be between ${minBet} and ${maxBet}`);
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) throw new Error('User not found');
+
+    const balance = parseFloat(user.balance);
+    if (balance < betAmount) throw new Error('Insufficient balance');
+
+    const serverSeed = generateServerSeed();
+    const serverSeedHash = hashServerSeed(serverSeed);
+    const playerClientSeed = clientSeed || crypto.randomBytes(8).toString('hex');
+    const nonce = Date.now();
+
+    const getCard = (offset: number): string => {
+      const result = generateResult(serverSeed, playerClientSeed, nonce + offset);
+      const valueIndex = Math.floor(result * 13);
+      const suitIndex = Math.floor((result * 100) % 4);
+      return `${CARD_VALUES[valueIndex]}${CARD_SUITS[suitIndex]}`;
+    };
+
+    const getHandValue = (hand: string[]): number => {
+      let value = 0;
+      let aces = 0;
+      for (const card of hand) {
+        const v = card.slice(0, -1);
+        if (v === 'A') { value += 11; aces++; }
+        else if (['K', 'Q', 'J'].includes(v)) value += 10;
+        else value += parseInt(v);
+      }
+      while (value > 21 && aces > 0) { value -= 10; aces--; }
+      return value;
+    };
+
+    // Generate all cards server-side (no client state)
+    let cardOffset = 0;
+    const playerCards = [getCard(cardOffset++), getCard(cardOffset++)];
+    const dealerCards = [getCard(cardOffset++), getCard(cardOffset++)];
+
+    // Auto-play: player hits until 17+
+    while (getHandValue(playerCards) < 17) {
+      playerCards.push(getCard(cardOffset++));
+    }
+
+    // Dealer hits until 17+
+    while (getHandValue(dealerCards) < 17) {
+      dealerCards.push(getCard(cardOffset++));
+    }
+
+    const playerValue = getHandValue(playerCards);
+    const dealerValue = getHandValue(dealerCards);
+
+    let isWin = false;
+    let isPush = false;
+
+    if (playerValue > 21) {
+      isWin = false;
+    } else if (dealerValue > 21) {
+      isWin = true;
+    } else if (playerValue > dealerValue) {
+      isWin = true;
+    } else if (playerValue === dealerValue) {
+      isPush = true;
+    }
+
+    const multiplier = isWin ? 2 : (isPush ? 1 : 0);
+    const payout = betAmount * multiplier;
+    const profit = payout - betAmount;
+
+    const [round] = await db.insert(casinoRounds).values({
+      gameId: game.id,
+      serverSeed,
+      serverSeedHash,
+      clientSeed: playerClientSeed,
+      nonce,
+      result: JSON.stringify({ playerCards, dealerCards, playerValue, dealerValue }),
+      multiplier: multiplier.toString(),
+      status: 'COMPLETED',
+      completedAt: new Date(),
+    }).returning();
+
+    await db.insert(casinoBets).values({
+      userId,
+      roundId: round.id,
+      gameId: game.id,
+      betAmount: betAmount.toString(),
+      payout: payout.toString(),
+      profit: profit.toString(),
+      isWin,
+    });
+
+    const newBalance = balance + profit;
+    await db.update(users).set({ balance: newBalance.toString() }).where(eq(users.id, userId));
+
+    await db.insert(walletTransactions).values({
+      userId,
+      amount: profit.toString(),
+      type: isWin ? 'CASINO_WIN' : 'CASINO_BET',
+      description: `Blackjack: ${isWin ? 'Won' : isPush ? 'Push' : 'Lost'}`,
+    });
+
+    return {
+      playerCards,
+      dealerCards,
+      playerValue,
+      dealerValue,
+      isWin,
+      isPush,
+      payout,
+      profit,
+      newBalance,
+    };
+  }
+
+  // Hi-Lo Card Game - both cards generated server-side
+  async playHiLo(userId: string, betAmount: number, guess: 'higher' | 'lower', clientSeed?: string) {
+    const game = await this.getGameBySlug('hi-lo');
+    if (!game) throw new Error('Game not found');
+
+    const minBet = parseFloat(game.minBet);
+    const maxBet = parseFloat(game.maxBet);
+    if (betAmount < minBet || betAmount > maxBet) {
+      throw new Error(`Bet must be between ${minBet} and ${maxBet}`);
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) throw new Error('User not found');
+
+    const balance = parseFloat(user.balance);
+    if (balance < betAmount) throw new Error('Insufficient balance');
+
+    const serverSeed = generateServerSeed();
+    const serverSeedHash = hashServerSeed(serverSeed);
+    const playerClientSeed = clientSeed || crypto.randomBytes(8).toString('hex');
+    const nonce = Date.now();
+
+    const getCard = (offset: number): string => {
+      const result = generateResult(serverSeed, playerClientSeed, nonce + offset);
+      const valueIndex = Math.floor(result * 13);
+      const suitIndex = Math.floor((result * 100) % 4);
+      return `${CARD_VALUES[valueIndex]}${CARD_SUITS[suitIndex]}`;
+    };
+
+    const getCardValue = (card: string): number => {
+      const v = card.slice(0, -1);
+      if (v === 'A') return 1;
+      if (v === 'K') return 13;
+      if (v === 'Q') return 12;
+      if (v === 'J') return 11;
+      return parseInt(v);
+    };
+
+    // Both cards generated server-side
+    const firstCard = getCard(0);
+    const nextCard = getCard(1);
+    const firstValue = getCardValue(firstCard);
+    const nextValue = getCardValue(nextCard);
+
+    let isWin = false;
+    if (guess === 'higher' && nextValue > firstValue) isWin = true;
+    if (guess === 'lower' && nextValue < firstValue) isWin = true;
+
+    const multiplier = isWin ? 1.9 : 0;
+    const payout = betAmount * multiplier;
+    const profit = payout - betAmount;
+
+    const [round] = await db.insert(casinoRounds).values({
+      gameId: game.id,
+      serverSeed,
+      serverSeedHash,
+      clientSeed: playerClientSeed,
+      nonce,
+      result: JSON.stringify({ firstCard, nextCard, guess }),
+      multiplier: multiplier.toString(),
+      status: 'COMPLETED',
+      completedAt: new Date(),
+    }).returning();
+
+    await db.insert(casinoBets).values({
+      userId,
+      roundId: round.id,
+      gameId: game.id,
+      betAmount: betAmount.toString(),
+      betChoice: guess,
+      payout: payout.toString(),
+      profit: profit.toString(),
+      isWin,
+    });
+
+    const newBalance = balance + profit;
+    await db.update(users).set({ balance: newBalance.toString() }).where(eq(users.id, userId));
+
+    await db.insert(walletTransactions).values({
+      userId,
+      amount: profit.toString(),
+      type: isWin ? 'CASINO_WIN' : 'CASINO_BET',
+      description: `Hi-Lo: ${firstCard} -> ${nextCard}, Guessed ${guess}`,
+    });
+
+    return {
+      firstCard,
+      nextCard,
+      guess,
+      isWin,
+      multiplier,
+      payout,
+      profit,
+      newBalance,
+    };
+  }
+
+  // Dragon Tiger
+  async playDragonTiger(userId: string, betAmount: number, bet: 'dragon' | 'tiger' | 'tie', clientSeed?: string) {
+    const game = await this.getGameBySlug('dragon-tiger');
+    if (!game) throw new Error('Game not found');
+
+    const minBet = parseFloat(game.minBet);
+    const maxBet = parseFloat(game.maxBet);
+    if (betAmount < minBet || betAmount > maxBet) {
+      throw new Error(`Bet must be between ${minBet} and ${maxBet}`);
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) throw new Error('User not found');
+
+    const balance = parseFloat(user.balance);
+    if (balance < betAmount) throw new Error('Insufficient balance');
+
+    const serverSeed = generateServerSeed();
+    const serverSeedHash = hashServerSeed(serverSeed);
+    const playerClientSeed = clientSeed || crypto.randomBytes(8).toString('hex');
+    const nonce = Date.now();
+
+    const getCard = (offset: number): string => {
+      const result = generateResult(serverSeed, playerClientSeed, nonce + offset);
+      const valueIndex = Math.floor(result * 13);
+      const suitIndex = Math.floor((result * 100) % 4);
+      return `${CARD_VALUES[valueIndex]}${CARD_SUITS[suitIndex]}`;
+    };
+
+    const getCardValue = (card: string): number => {
+      const v = card.slice(0, -1);
+      if (v === 'A') return 1;
+      if (v === 'K') return 13;
+      if (v === 'Q') return 12;
+      if (v === 'J') return 11;
+      return parseInt(v);
+    };
+
+    const dragonCard = getCard(0);
+    const tigerCard = getCard(1);
+    const dragonValue = getCardValue(dragonCard);
+    const tigerValue = getCardValue(tigerCard);
+
+    let outcome: 'dragon' | 'tiger' | 'tie';
+    if (dragonValue > tigerValue) outcome = 'dragon';
+    else if (tigerValue > dragonValue) outcome = 'tiger';
+    else outcome = 'tie';
+
+    let multiplier = 0;
+    if (bet === outcome) {
+      if (outcome === 'tie') multiplier = 8;
+      else multiplier = 1.9;
+    } else if (outcome === 'tie' && bet !== 'tie') {
+      // Return half on tie if betting dragon/tiger
+      multiplier = 0.5;
+    }
+
+    const isWin = multiplier >= 1;
+    const payout = betAmount * multiplier;
+    const profit = payout - betAmount;
+
+    const [round] = await db.insert(casinoRounds).values({
+      gameId: game.id,
+      serverSeed,
+      serverSeedHash,
+      clientSeed: playerClientSeed,
+      nonce,
+      result: JSON.stringify({ dragonCard, tigerCard, outcome }),
+      multiplier: multiplier.toString(),
+      status: 'COMPLETED',
+      completedAt: new Date(),
+    }).returning();
+
+    await db.insert(casinoBets).values({
+      userId,
+      roundId: round.id,
+      gameId: game.id,
+      betAmount: betAmount.toString(),
+      betChoice: bet,
+      payout: payout.toString(),
+      profit: profit.toString(),
+      isWin,
+    });
+
+    const newBalance = balance + profit;
+    await db.update(users).set({ balance: newBalance.toString() }).where(eq(users.id, userId));
+
+    await db.insert(walletTransactions).values({
+      userId,
+      amount: profit.toString(),
+      type: isWin ? 'CASINO_WIN' : 'CASINO_BET',
+      description: `Dragon Tiger: ${outcome} wins`,
+    });
+
+    return {
+      dragonCard,
+      tigerCard,
+      dragonValue,
+      tigerValue,
+      outcome,
+      bet,
+      isWin,
+      multiplier,
+      payout,
+      profit,
+      newBalance,
+    };
+  }
+
+  // Plinko
+  async playPlinko(userId: string, betAmount: number, risk: 'low' | 'medium' | 'high', rows: number = 16, clientSeed?: string) {
+    const game = await this.getGameBySlug('plinko');
+    if (!game) throw new Error('Game not found');
+
+    const minBet = parseFloat(game.minBet);
+    const maxBet = parseFloat(game.maxBet);
+    if (betAmount < minBet || betAmount > maxBet) {
+      throw new Error(`Bet must be between ${minBet} and ${maxBet}`);
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) throw new Error('User not found');
+
+    const balance = parseFloat(user.balance);
+    if (balance < betAmount) throw new Error('Insufficient balance');
+
+    const serverSeed = generateServerSeed();
+    const serverSeedHash = hashServerSeed(serverSeed);
+    const playerClientSeed = clientSeed || crypto.randomBytes(8).toString('hex');
+    const nonce = Date.now();
+
+    // Generate path
+    const path: ('L' | 'R')[] = [];
+    let position = 0;
+
+    for (let i = 0; i < rows; i++) {
+      const result = generateResult(serverSeed, playerClientSeed, nonce + i);
+      if (result < 0.5) {
+        path.push('L');
+        position--;
+      } else {
+        path.push('R');
+        position++;
+      }
+    }
+
+    // Multipliers based on risk and position
+    const multipliers: Record<string, number[]> = {
+      low: [5.6, 2.1, 1.1, 1, 0.5, 1, 1.1, 2.1, 5.6],
+      medium: [13, 3, 1.3, 0.7, 0.4, 0.7, 1.3, 3, 13],
+      high: [29, 4, 1.5, 0.3, 0.2, 0.3, 1.5, 4, 29],
+    };
+
+    const bucketIndex = Math.floor((position + rows) / 2);
+    const riskMultipliers = multipliers[risk] || multipliers.medium;
+    const multiplier = riskMultipliers[Math.min(Math.max(bucketIndex, 0), riskMultipliers.length - 1)] || 0.5;
+
+    const isWin = multiplier >= 1;
+    const payout = betAmount * multiplier;
+    const profit = payout - betAmount;
+
+    const [round] = await db.insert(casinoRounds).values({
+      gameId: game.id,
+      serverSeed,
+      serverSeedHash,
+      clientSeed: playerClientSeed,
+      nonce,
+      result: JSON.stringify({ path, position, bucketIndex, risk }),
+      multiplier: multiplier.toString(),
+      status: 'COMPLETED',
+      completedAt: new Date(),
+    }).returning();
+
+    await db.insert(casinoBets).values({
+      userId,
+      roundId: round.id,
+      gameId: game.id,
+      betAmount: betAmount.toString(),
+      betChoice: risk,
+      payout: payout.toString(),
+      profit: profit.toString(),
+      isWin,
+    });
+
+    const newBalance = balance + profit;
+    await db.update(users).set({ balance: newBalance.toString() }).where(eq(users.id, userId));
+
+    await db.insert(walletTransactions).values({
+      userId,
+      amount: profit.toString(),
+      type: isWin ? 'CASINO_WIN' : 'CASINO_BET',
+      description: `Plinko: ${multiplier}x multiplier`,
+    });
+
+    return {
+      path,
+      position,
+      bucketIndex,
+      multiplier,
+      isWin,
+      payout,
+      profit,
+      newBalance,
+    };
+  }
+
+  // Wheel of Fortune
+  async playWheelOfFortune(userId: string, betAmount: number, clientSeed?: string) {
+    const game = await this.getGameBySlug('wheel-of-fortune');
+    if (!game) throw new Error('Game not found');
+
+    const minBet = parseFloat(game.minBet);
+    const maxBet = parseFloat(game.maxBet);
+    if (betAmount < minBet || betAmount > maxBet) {
+      throw new Error(`Bet must be between ${minBet} and ${maxBet}`);
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) throw new Error('User not found');
+
+    const balance = parseFloat(user.balance);
+    if (balance < betAmount) throw new Error('Insufficient balance');
+
+    const serverSeed = generateServerSeed();
+    const serverSeedHash = hashServerSeed(serverSeed);
+    const playerClientSeed = clientSeed || crypto.randomBytes(8).toString('hex');
+    const nonce = Date.now();
+
+    // Wheel segments with multipliers and colors
+    const segments = [
+      { multiplier: 0, color: 'gray', label: '0x' },
+      { multiplier: 1.2, color: 'green', label: '1.2x' },
+      { multiplier: 0, color: 'gray', label: '0x' },
+      { multiplier: 1.5, color: 'blue', label: '1.5x' },
+      { multiplier: 0, color: 'gray', label: '0x' },
+      { multiplier: 2, color: 'purple', label: '2x' },
+      { multiplier: 0.5, color: 'orange', label: '0.5x' },
+      { multiplier: 3, color: 'pink', label: '3x' },
+      { multiplier: 0, color: 'gray', label: '0x' },
+      { multiplier: 5, color: 'gold', label: '5x' },
+      { multiplier: 0, color: 'gray', label: '0x' },
+      { multiplier: 10, color: 'red', label: '10x' },
+    ];
+
+    const result = generateResult(serverSeed, playerClientSeed, nonce);
+    const segmentIndex = Math.floor(result * segments.length);
+    const segment = segments[segmentIndex];
+    const rotation = 360 * 5 + (segmentIndex * (360 / segments.length));
+
+    const multiplier = segment.multiplier;
+    const isWin = multiplier > 0;
+    const payout = betAmount * multiplier;
+    const profit = payout - betAmount;
+
+    const [round] = await db.insert(casinoRounds).values({
+      gameId: game.id,
+      serverSeed,
+      serverSeedHash,
+      clientSeed: playerClientSeed,
+      nonce,
+      result: JSON.stringify({ segmentIndex, segment, rotation }),
+      multiplier: multiplier.toString(),
+      status: 'COMPLETED',
+      completedAt: new Date(),
+    }).returning();
+
+    await db.insert(casinoBets).values({
+      userId,
+      roundId: round.id,
+      gameId: game.id,
+      betAmount: betAmount.toString(),
+      payout: payout.toString(),
+      profit: profit.toString(),
+      isWin,
+    });
+
+    const newBalance = balance + profit;
+    await db.update(users).set({ balance: newBalance.toString() }).where(eq(users.id, userId));
+
+    await db.insert(walletTransactions).values({
+      userId,
+      amount: profit.toString(),
+      type: isWin ? 'CASINO_WIN' : 'CASINO_BET',
+      description: `Wheel of Fortune: ${segment.label}`,
+    });
+
+    return {
+      segmentIndex,
+      segment,
+      rotation,
+      multiplier,
+      isWin,
+      payout,
+      profit,
+      newBalance,
+    };
+  }
+
+  // ============================================
+  // MINES GAME - Manual + Auto modes
+  // ============================================
+  
+  private minesGames: Map<string, {
+    oddsGameStateId: string;
+    oddsUserId: string;
+    betAmount: number;
+    mineCount: number;
+    minePositions: number[];
+    revealedTiles: number[];
+    currentMultiplier: number;
+    serverSeed: string;
+    serverSeedHash: string;
+    clientSeed: string;
+    nonce: number;
+    casinoGameId: string;
+    createdAt: number;
+  }> = new Map();
+
+  private readonly GRID_SIZE = 25;
+  private readonly HOUSE_EDGE = 0.02; // 2% house edge
+
+  // Calculate multiplier for revealing next safe tile
+  private calculateNextMultiplier(mineCount: number, revealedSafe: number): number {
+    const safeTiles = this.GRID_SIZE - mineCount;
+    const remainingTiles = this.GRID_SIZE - revealedSafe;
+    const remainingSafe = safeTiles - revealedSafe;
+    
+    // Probability of next tile being safe
+    const survivalChance = remainingSafe / remainingTiles;
+    
+    // Fair multiplier is inverse of survival chance, minus house edge
+    const tileMultiplier = (1 / survivalChance) * (1 - this.HOUSE_EDGE);
+    
+    return Math.round(tileMultiplier * 10000) / 10000;
+  }
+
+  // Calculate cumulative multiplier for N safe tiles revealed
+  private calculateCumulativeMultiplier(mineCount: number, revealedSafe: number): number {
+    let multiplier = 1;
+    for (let i = 0; i < revealedSafe; i++) {
+      multiplier *= this.calculateNextMultiplier(mineCount, i);
+    }
+    return Math.round(multiplier * 100) / 100;
+  }
+
+  // Start a new Mines game (manual mode)
+  async minesStart(userId: string, betAmount: number, mineCount: number, clientSeed?: string) {
+    const game = await this.getGameBySlug('mines');
+    if (!game) throw new Error('Game not found');
+
+    const minBet = parseFloat(game.minBet);
+    const maxBet = parseFloat(game.maxBet);
+    if (betAmount < minBet || betAmount > maxBet) {
+      throw new Error(`Bet must be between ${minBet} and ${maxBet}`);
+    }
+
+    if (mineCount < 1 || mineCount > 24) {
+      throw new Error('Mine count must be between 1 and 24');
+    }
+
+    // Check if user has an active game
+    const existingGame = Array.from(this.minesGames.values()).find(g => g.oddsUserId === userId);
+    if (existingGame) {
+      throw new Error('You have an active Mines game. Please finish or cashout first.');
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) throw new Error('User not found');
+
+    const balance = parseFloat(user.balance);
+    if (balance < betAmount) throw new Error('Insufficient balance');
+
+    // Deduct bet from balance
+    const newBalance = balance - betAmount;
+    await db.update(users).set({ balance: newBalance.toString() }).where(eq(users.id, userId));
+
+    await db.insert(walletTransactions).values({
+      userId,
+      amount: (-betAmount).toString(),
+      type: 'CASINO_BET',
+      description: `Mines game started: ${mineCount} mines`,
+    });
+
+    const serverSeed = generateServerSeed();
+    const serverSeedHash = hashServerSeed(serverSeed);
+    const playerClientSeed = clientSeed || crypto.randomBytes(8).toString('hex');
+    const nonce = Date.now();
+
+    // Generate mine positions server-side
+    const minePositions: number[] = [];
+    let offset = 0;
+    while (minePositions.length < mineCount) {
+      const result = generateResult(serverSeed, playerClientSeed, nonce + offset);
+      const pos = Math.floor(result * this.GRID_SIZE);
+      if (!minePositions.includes(pos)) {
+        minePositions.push(pos);
+      }
+      offset++;
+    }
+
+    const gameStateId = `mines-${userId}-${Date.now()}`;
+    
+    this.minesGames.set(gameStateId, {
+      oddsGameStateId: gameStateId,
+      oddsUserId: userId,
+      betAmount,
+      mineCount,
+      minePositions,
+      revealedTiles: [],
+      currentMultiplier: 1,
+      serverSeed,
+      serverSeedHash,
+      clientSeed: playerClientSeed,
+      nonce,
+      casinoGameId: game.id,
+      createdAt: Date.now(),
+    });
+
+    // Calculate potential multipliers for display
+    const multiplierTable = [];
+    for (let i = 1; i <= this.GRID_SIZE - mineCount; i++) {
+      multiplierTable.push({
+        tiles: i,
+        multiplier: this.calculateCumulativeMultiplier(mineCount, i),
+      });
+    }
+
+    return {
+      gameId: gameStateId,
+      serverSeedHash,
+      mineCount,
+      gridSize: this.GRID_SIZE,
+      currentMultiplier: 1,
+      potentialCashout: betAmount,
+      newBalance,
+      multiplierTable: multiplierTable.slice(0, 10), // First 10 for display
+    };
+  }
+
+  // Reveal a single tile (manual mode)
+  async minesReveal(userId: string, gameId: string, tileIndex: number) {
+    const gameState = this.minesGames.get(gameId);
+    if (!gameState) throw new Error('Game not found or expired');
+    if (gameState.oddsUserId !== userId) throw new Error('This is not your game');
+
+    if (tileIndex < 0 || tileIndex >= this.GRID_SIZE) {
+      throw new Error('Invalid tile index');
+    }
+
+    if (gameState.revealedTiles.includes(tileIndex)) {
+      throw new Error('Tile already revealed');
+    }
+
+    const isMine = gameState.minePositions.includes(tileIndex);
+    gameState.revealedTiles.push(tileIndex);
+
+    if (isMine) {
+      // Game over - player loses
+      const [round] = await db.insert(casinoRounds).values({
+        gameId: gameState.casinoGameId,
+        serverSeed: gameState.serverSeed,
+        serverSeedHash: gameState.serverSeedHash,
+        clientSeed: gameState.clientSeed,
+        nonce: gameState.nonce,
+        result: JSON.stringify({ 
+          minePositions: gameState.minePositions, 
+          revealedTiles: gameState.revealedTiles, 
+          hitMine: true 
+        }),
+        multiplier: '0',
+        status: 'COMPLETED',
+        completedAt: new Date(),
+      }).returning();
+
+      await db.insert(casinoBets).values({
+        userId: userId,
+        roundId: round.id,
+        gameId: gameState.casinoGameId,
+        betAmount: gameState.betAmount.toString(),
+        betChoice: `mines:${gameState.mineCount}`,
+        payout: '0',
+        profit: (-gameState.betAmount).toString(),
+        isWin: false,
+      });
+
+      this.minesGames.delete(gameId);
+
+      return {
+        tileIndex,
+        isMine: true,
+        gameOver: true,
+        isWin: false,
+        minePositions: gameState.minePositions,
+        revealedTiles: gameState.revealedTiles,
+        payout: 0,
+        serverSeed: gameState.serverSeed,
+      };
+    }
+
+    // Safe tile - update multiplier
+    const safeRevealed = gameState.revealedTiles.filter(t => !gameState.minePositions.includes(t)).length;
+    gameState.currentMultiplier = this.calculateCumulativeMultiplier(gameState.mineCount, safeRevealed);
+    const potentialCashout = Math.floor(gameState.betAmount * gameState.currentMultiplier * 100) / 100;
+
+    // Check if all safe tiles revealed (auto-win)
+    const maxSafe = this.GRID_SIZE - gameState.mineCount;
+    if (safeRevealed >= maxSafe) {
+      return this.minesCashout(userId, gameId);
+    }
+
+    // Calculate next tile multiplier
+    const nextMultiplier = this.calculateCumulativeMultiplier(gameState.mineCount, safeRevealed + 1);
+
+    return {
+      tileIndex,
+      isMine: false,
+      gameOver: false,
+      currentMultiplier: gameState.currentMultiplier,
+      nextMultiplier,
+      potentialCashout,
+      revealedTiles: gameState.revealedTiles,
+      safeRevealed,
+      tilesRemaining: this.GRID_SIZE - gameState.revealedTiles.length,
+    };
+  }
+
+  // Cashout current winnings
+  async minesCashout(userId: string, gameId: string) {
+    const gameState = this.minesGames.get(gameId);
+    if (!gameState) throw new Error('Game not found or expired');
+    if (gameState.oddsUserId !== userId) throw new Error('This is not your game');
+
+    const safeRevealed = gameState.revealedTiles.filter(t => !gameState.minePositions.includes(t)).length;
+    
+    if (safeRevealed === 0) {
+      throw new Error('You must reveal at least one tile before cashing out');
+    }
+
+    const payout = Math.floor(gameState.betAmount * gameState.currentMultiplier * 100) / 100;
+    const profit = payout - gameState.betAmount;
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) throw new Error('User not found');
+
+    const balance = parseFloat(user.balance);
+    const newBalance = balance + payout;
+    await db.update(users).set({ balance: newBalance.toString() }).where(eq(users.id, userId));
+
+    await db.insert(walletTransactions).values({
+      userId,
+      amount: payout.toString(),
+      type: 'CASINO_WIN',
+      description: `Mines cashout: ${safeRevealed} safe tiles, ${gameState.currentMultiplier}x`,
+    });
+
+    const [round] = await db.insert(casinoRounds).values({
+      gameId: gameState.casinoGameId,
+      serverSeed: gameState.serverSeed,
+      serverSeedHash: gameState.serverSeedHash,
+      clientSeed: gameState.clientSeed,
+      nonce: gameState.nonce,
+      result: JSON.stringify({ 
+        minePositions: gameState.minePositions, 
+        revealedTiles: gameState.revealedTiles, 
+        hitMine: false,
+        cashedOut: true,
+      }),
+      multiplier: gameState.currentMultiplier.toString(),
+      status: 'COMPLETED',
+      completedAt: new Date(),
+    }).returning();
+
+    await db.insert(casinoBets).values({
+      userId: userId,
+      roundId: round.id,
+      gameId: gameState.casinoGameId,
+      betAmount: gameState.betAmount.toString(),
+      betChoice: `mines:${gameState.mineCount}`,
+      payout: payout.toString(),
+      profit: profit.toString(),
+      isWin: true,
+    });
+
+    this.minesGames.delete(gameId);
+
+    return {
+      gameOver: true,
+      isWin: true,
+      isMine: false,
+      multiplier: gameState.currentMultiplier,
+      payout,
+      profit,
+      newBalance,
+      minePositions: gameState.minePositions,
+      revealedTiles: gameState.revealedTiles,
+      serverSeed: gameState.serverSeed,
+    };
+  }
+
+  // Auto mode - reveal N tiles automatically
+  async minesAuto(userId: string, betAmount: number, mineCount: number, tilesToReveal: number, clientSeed?: string) {
+    // Start the game
+    const startResult = await this.minesStart(userId, betAmount, mineCount, clientSeed);
+    const gameId = startResult.gameId;
+
+    const gameState = this.minesGames.get(gameId);
+    if (!gameState) throw new Error('Failed to start game');
+
+    const revealResults: { tileIndex: number; isMine: boolean }[] = [];
+    
+    // Reveal tiles one by one
+    for (let i = 0; i < tilesToReveal; i++) {
+      // Pick a random unrevealed safe tile
+      const availableTiles = [];
+      for (let t = 0; t < this.GRID_SIZE; t++) {
+        if (!gameState.revealedTiles.includes(t)) {
+          availableTiles.push(t);
+        }
+      }
+      
+      if (availableTiles.length === 0) break;
+      
+      // Random selection weighted by server seed
+      const result = generateResult(gameState.serverSeed, gameState.clientSeed, gameState.nonce + 1000 + i);
+      const tileIndex = availableTiles[Math.floor(result * availableTiles.length)];
+      
+      const revealResult = await this.minesReveal(userId, gameId, tileIndex);
+      revealResults.push({ tileIndex, isMine: revealResult.isMine });
+      
+      if (revealResult.gameOver) {
+        return {
+          ...revealResult,
+          revealSequence: revealResults,
+          mode: 'auto',
+        };
+      }
+    }
+
+    // Auto-cashout after revealing all requested tiles
+    const cashoutResult = await this.minesCashout(userId, gameId);
+    return {
+      ...cashoutResult,
+      revealSequence: revealResults,
+      mode: 'auto',
+    };
+  }
+
+  // Legacy method for backward compatibility
+  async playMines(userId: string, betAmount: number, mineCount: number, tilesToReveal: number = 3, clientSeed?: string) {
+    return this.minesAuto(userId, betAmount, mineCount, tilesToReveal, clientSeed);
+  }
+
+  // Get active game state (for reconnection)
+  getActiveMinesGame(userId: string) {
+    const game = Array.from(this.minesGames.values()).find(g => g.oddsUserId === userId);
+    if (!game) return null;
+
+    const safeRevealed = game.revealedTiles.filter(t => !game.minePositions.includes(t)).length;
+    
+    return {
+      gameId: game.oddsGameStateId,
+      mineCount: game.mineCount,
+      betAmount: game.betAmount,
+      currentMultiplier: game.currentMultiplier,
+      potentialCashout: Math.floor(game.betAmount * game.currentMultiplier * 100) / 100,
+      revealedTiles: game.revealedTiles,
+      safeRevealed,
+      serverSeedHash: game.serverSeedHash,
+    };
+  }
 }
 
 export const casinoService = new CasinoService();

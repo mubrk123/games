@@ -375,6 +375,124 @@ class InstanceSettlementService {
     return openBets.length;
   }
 
+  // Settle stale bets that have overNumber/ballNumber stored but no in-memory market
+  async settleStaleBets(): Promise<{ settled: number; voided: number; errors: string[] }> {
+    const result = { settled: 0, voided: 0, errors: [] as string[] };
+    
+    try {
+      const openBets = await storage.getOpenInstanceBets();
+      console.log(`[InstanceSettlement] Checking ${openBets.length} stale bets for settlement`);
+      
+      for (const bet of openBets) {
+        try {
+          // Skip bets without over/ball info
+          if (bet.overNumber === null || bet.ballNumber === null) {
+            continue;
+          }
+
+          // Get current match state
+          const matchState = await this.getMatchScoreState(bet.matchId);
+          if (!matchState) {
+            // Match not found or API error - void bet if it's very old (> 24 hours)
+            const betAge = Date.now() - new Date(bet.createdAt).getTime();
+            if (betAge > 24 * 60 * 60 * 1000) {
+              await this.voidStaleBet(bet, 'Match data unavailable for over 24 hours');
+              result.voided++;
+            }
+            continue;
+          }
+
+          // Calculate ball totals for comparison
+          const betBallTotal = (bet.overNumber || 0) * 6 + (bet.ballNumber || 0);
+          const currentBallTotal = matchState.currentOver * 6 + matchState.currentBall;
+
+          // If the bet's ball has passed, we need to settle it
+          if (betBallTotal < currentBallTotal) {
+            console.log(`[InstanceSettlement] Stale bet ${bet.id}: Ball ${bet.overNumber}.${bet.ballNumber} has passed (current: ${matchState.currentOver}.${matchState.currentBall})`);
+            
+            // We don't know the exact outcome since we missed it
+            // Void the bet and refund the stake
+            await this.voidStaleBet(bet, `Ball ${bet.overNumber}.${bet.ballNumber} passed - voided and refunded`);
+            result.voided++;
+          }
+        } catch (error: any) {
+          result.errors.push(`Bet ${bet.id}: ${error.message}`);
+        }
+      }
+      
+      console.log(`[InstanceSettlement] Stale bet settlement complete: ${result.settled} settled, ${result.voided} voided`);
+      return result;
+    } catch (error: any) {
+      console.error('[InstanceSettlement] Stale bet settlement failed:', error.message);
+      result.errors.push(error.message);
+      return result;
+    }
+  }
+
+  async voidStaleBet(bet: InstanceBet, reason: string): Promise<void> {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Refund the stake
+      const stake = parseFloat(bet.stake);
+      const userResult = await client.query(
+        'SELECT balance FROM users WHERE id = $1 FOR UPDATE',
+        [bet.userId]
+      );
+
+      if (userResult.rows.length > 0) {
+        const currentBalance = parseFloat(userResult.rows[0].balance);
+        const newBalance = currentBalance + stake;
+        
+        await client.query(
+          'UPDATE users SET balance = $1 WHERE id = $2',
+          [newBalance.toString(), bet.userId]
+        );
+
+        await client.query(
+          `INSERT INTO wallet_transactions (id, user_id, amount, type, description)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4)`,
+          [bet.userId, stake.toString(), 'INSTANCE_BET_VOID', reason]
+        );
+      }
+
+      // Mark bet as void
+      await client.query(
+        `UPDATE instance_bets SET status = 'VOID', winning_outcome = $1, settled_at = NOW() WHERE id = $2`,
+        [reason, bet.id]
+      );
+
+      await client.query('COMMIT');
+      console.log(`[InstanceSettlement] Voided stale bet ${bet.id}: ${reason}`);
+
+      // Emit wallet update
+      const walletResult = await client.query(
+        'SELECT balance, exposure FROM users WHERE id = $1',
+        [bet.userId]
+      );
+      
+      if (walletResult.rows.length > 0) {
+        const walletUpdate: WalletUpdate = {
+          userId: bet.userId,
+          balance: parseFloat(walletResult.rows[0].balance),
+          exposure: parseFloat(walletResult.rows[0].exposure),
+          change: stake,
+          reason: 'Instance play voided - refunded',
+          timestamp: Date.now(),
+        };
+        realtimeHub.emitWalletUpdate(walletUpdate);
+      }
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   start(intervalMs: number = 10000): void {
     if (this.isRunning) {
       console.log('[InstanceSettlement] Service already running');
@@ -387,7 +505,12 @@ class InstanceSettlementService {
     this.intervalId = setInterval(async () => {
       await this.settleExpiredMarkets();
       await this.checkAndSettleLiveMatches();
+      // Check for stale bets every interval
+      await this.settleStaleBets();
     }, intervalMs);
+
+    // Also run stale bet settlement immediately on startup
+    setTimeout(() => this.settleStaleBets(), 5000);
   }
 
   stop(): void {

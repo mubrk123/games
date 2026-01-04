@@ -400,6 +400,74 @@ class ApiClient {
     return this.request(`/casino/verify/${roundId}`);
   }
 
+  async playBlackjack(betAmount: number, clientSeed?: string): Promise<BlackjackResult> {
+    return this.request('/casino/blackjack/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, clientSeed }),
+    });
+  }
+
+  async playHiLo(betAmount: number, guess: 'higher' | 'lower', clientSeed?: string): Promise<HiLoResult> {
+    return this.request('/casino/hi-lo/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, guess, clientSeed }),
+    });
+  }
+
+  async playDragonTiger(betAmount: number, bet: 'dragon' | 'tiger' | 'tie', clientSeed?: string): Promise<DragonTigerResult> {
+    return this.request('/casino/dragon-tiger/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, bet, clientSeed }),
+    });
+  }
+
+  async playPlinko(betAmount: number, risk: 'low' | 'medium' | 'high', rows?: number, clientSeed?: string): Promise<PlinkoResult> {
+    return this.request('/casino/plinko/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, risk, rows: rows || 16, clientSeed }),
+    });
+  }
+
+  async playWheelOfFortune(betAmount: number, clientSeed?: string): Promise<WheelResult> {
+    return this.request('/casino/wheel/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, clientSeed }),
+    });
+  }
+
+  async playMines(betAmount: number, mineCount: number, tilesToReveal: number = 3, clientSeed?: string): Promise<MinesResult> {
+    return this.request('/casino/mines/play', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, mineCount, tilesToReveal, clientSeed }),
+    });
+  }
+
+  // Mines Manual Mode
+  async minesStart(betAmount: number, mineCount: number, clientSeed?: string): Promise<MinesStartResult> {
+    return this.request('/casino/mines/start', {
+      method: 'POST',
+      body: JSON.stringify({ betAmount, mineCount, clientSeed }),
+    });
+  }
+
+  async minesReveal(gameId: string, tileIndex: number): Promise<MinesRevealResult> {
+    return this.request('/casino/mines/reveal', {
+      method: 'POST',
+      body: JSON.stringify({ gameId, tileIndex }),
+    });
+  }
+
+  async minesCashout(gameId: string): Promise<MinesCashoutResult> {
+    return this.request('/casino/mines/cashout', {
+      method: 'POST',
+      body: JSON.stringify({ gameId }),
+    });
+  }
+
+  async minesGetActive(): Promise<MinesActiveResult> {
+    return this.request('/casino/mines/active');
+  }
+
   // ============================================
   // Deposit Requests
   // ============================================
@@ -619,6 +687,124 @@ export interface FairnessVerification {
   nonce: number;
   isValid: boolean;
   result: any;
+}
+
+export interface BlackjackResult {
+  playerCards: string[];
+  dealerCards: string[];
+  playerValue: number;
+  dealerValue: number;
+  isWin: boolean;
+  isPush: boolean;
+  payout: number;
+  profit: number;
+  newBalance: number;
+}
+
+export interface HiLoResult {
+  firstCard: string;
+  nextCard: string;
+  guess: 'higher' | 'lower';
+  isWin: boolean;
+  multiplier: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+}
+
+export interface DragonTigerResult {
+  dragonCard: string;
+  tigerCard: string;
+  winner: 'dragon' | 'tiger' | 'tie';
+  bet: 'dragon' | 'tiger' | 'tie';
+  isWin: boolean;
+  multiplier: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+}
+
+export interface PlinkoResult {
+  path: string[];
+  slot: number;
+  multiplier: number;
+  isWin: boolean;
+  payout: number;
+  profit: number;
+  newBalance: number;
+}
+
+export interface WheelResult {
+  segment: number;
+  label: string;
+  multiplier: number;
+  isWin: boolean;
+  payout: number;
+  profit: number;
+  newBalance: number;
+}
+
+export interface MinesResult {
+  minePositions: number[];
+  revealedTiles: number[];
+  hitMine: boolean;
+  multiplier: number;
+  isWin: boolean;
+  payout: number;
+  profit: number;
+  newBalance: number;
+}
+
+export interface MinesStartResult {
+  gameId: string;
+  serverSeedHash: string;
+  mineCount: number;
+  gridSize: number;
+  currentMultiplier: number;
+  potentialCashout: number;
+  newBalance: number;
+  multiplierTable: { tiles: number; multiplier: number }[];
+}
+
+export interface MinesRevealResult {
+  tileIndex: number;
+  isMine: boolean;
+  gameOver: boolean;
+  isWin?: boolean;
+  currentMultiplier?: number;
+  nextMultiplier?: number;
+  potentialCashout?: number;
+  revealedTiles: number[];
+  safeRevealed?: number;
+  tilesRemaining?: number;
+  minePositions?: number[];
+  payout?: number;
+  serverSeed?: string;
+}
+
+export interface MinesCashoutResult {
+  gameOver: boolean;
+  isWin: boolean;
+  isMine: boolean;
+  multiplier: number;
+  payout: number;
+  profit: number;
+  newBalance: number;
+  minePositions: number[];
+  revealedTiles: number[];
+  serverSeed: string;
+}
+
+export interface MinesActiveResult {
+  active: boolean;
+  gameId?: string;
+  mineCount?: number;
+  betAmount?: number;
+  currentMultiplier?: number;
+  potentialCashout?: number;
+  revealedTiles?: number[];
+  safeRevealed?: number;
+  serverSeedHash?: string;
 }
 
 export const api = new ApiClient();

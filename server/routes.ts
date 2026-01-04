@@ -8,6 +8,7 @@ import { insertUserSchema, insertBetSchema } from "@shared/schema";
 import { oddsApiService, POPULAR_SPORTS } from "./oddsApi";
 import { cricketApiService } from "./cricketApi";
 import { instanceBettingService } from "./instanceBetting";
+import { instanceSettlementService } from "./instanceSettlementService";
 import { casinoService } from "./casinoService";
 
 export async function registerRoutes(
@@ -1278,6 +1279,22 @@ export async function registerRoutes(
     }
   });
 
+  // Settle stale instance bets (Admin) - manually trigger settlement of old bets
+  app.post("/api/admin/instance/settle-stale", requireAdmin, async (req, res) => {
+    try {
+      console.log("[Admin] Triggering stale bet settlement...");
+      const result = await instanceSettlementService.settleStaleBets();
+      res.json({ 
+        success: true, 
+        message: `Settled ${result.settled} bets, voided ${result.voided} stale bets`,
+        ...result
+      });
+    } catch (error: any) {
+      console.error("[Admin] Stale bet settlement failed:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ============================================
   // Instance Betting Routes
   // ============================================
@@ -1433,6 +1450,9 @@ export async function registerRoutes(
         odds: outcome.odds.toString(),
         stake: stake,
         potentialProfit: potentialProfit.toString(),
+        overNumber: market.overNumber,
+        ballNumber: market.ballNumber,
+        inningNumber: 1,
       });
 
       const newBalance = currentBalance - stakeNum;
@@ -1704,6 +1724,207 @@ export async function registerRoutes(
       const { roundId } = req.params;
       const verification = await casinoService.verifyFairness(roundId);
       res.json(verification);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Play Blackjack
+  app.post("/api/casino/blackjack/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      const result = await casinoService.playBlackjack(user.id, betAmount, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Play Hi-Lo
+  app.post("/api/casino/hi-lo/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, guess, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!['higher', 'lower'].includes(guess)) {
+        return res.status(400).json({ error: "Guess must be 'higher' or 'lower'" });
+      }
+      
+      const result = await casinoService.playHiLo(user.id, betAmount, guess, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Play Dragon Tiger
+  app.post("/api/casino/dragon-tiger/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, bet, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!['dragon', 'tiger', 'tie'].includes(bet)) {
+        return res.status(400).json({ error: "Bet must be 'dragon', 'tiger', or 'tie'" });
+      }
+      
+      const result = await casinoService.playDragonTiger(user.id, betAmount, bet, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Play Plinko
+  app.post("/api/casino/plinko/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, risk, rows = 16, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!['low', 'medium', 'high'].includes(risk)) {
+        return res.status(400).json({ error: "Risk must be 'low', 'medium', or 'high'" });
+      }
+      
+      const result = await casinoService.playPlinko(user.id, betAmount, risk, rows, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Play Wheel of Fortune
+  app.post("/api/casino/wheel/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      const result = await casinoService.playWheelOfFortune(user.id, betAmount, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Play Mines (auto mode - server-controlled reveals)
+  app.post("/api/casino/mines/play", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, mineCount, tilesToReveal = 3, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!mineCount || mineCount < 1 || mineCount > 24) {
+        return res.status(400).json({ error: "Mine count must be between 1 and 24" });
+      }
+
+      if (tilesToReveal < 1 || tilesToReveal > (25 - mineCount)) {
+        return res.status(400).json({ error: "Invalid tiles to reveal count" });
+      }
+      
+      const result = await casinoService.playMines(user.id, betAmount, mineCount, tilesToReveal, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // MINES MANUAL MODE ENDPOINTS
+  // ============================================
+
+  // Start a new Mines game (manual mode)
+  app.post("/api/casino/mines/start", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { betAmount, mineCount, clientSeed } = req.body;
+      
+      if (!betAmount || betAmount <= 0) {
+        return res.status(400).json({ error: "Invalid bet amount" });
+      }
+      
+      if (!mineCount || mineCount < 1 || mineCount > 24) {
+        return res.status(400).json({ error: "Mine count must be between 1 and 24" });
+      }
+      
+      const result = await casinoService.minesStart(user.id, betAmount, mineCount, clientSeed);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Reveal a single tile (manual mode)
+  app.post("/api/casino/mines/reveal", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { gameId, tileIndex } = req.body;
+      
+      if (!gameId) {
+        return res.status(400).json({ error: "Game ID is required" });
+      }
+      
+      if (tileIndex === undefined || tileIndex < 0 || tileIndex > 24) {
+        return res.status(400).json({ error: "Invalid tile index" });
+      }
+      
+      const result = await casinoService.minesReveal(user.id, gameId, tileIndex);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Cashout current winnings
+  app.post("/api/casino/mines/cashout", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { gameId } = req.body;
+      
+      if (!gameId) {
+        return res.status(400).json({ error: "Game ID is required" });
+      }
+      
+      const result = await casinoService.minesCashout(user.id, gameId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Get active Mines game (for reconnection)
+  app.get("/api/casino/mines/active", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const game = casinoService.getActiveMinesGame(user.id);
+      
+      if (!game) {
+        return res.json({ active: false });
+      }
+      
+      res.json({ active: true, ...game });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

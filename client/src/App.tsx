@@ -16,6 +16,12 @@ const AndarBaharGame = lazy(() => import("@/pages/casino/andar-bahar"));
 const TeenPattiGame = lazy(() => import("@/pages/casino/teen-patti"));
 const Lucky7Game = lazy(() => import("@/pages/casino/lucky-7"));
 const RouletteGame = lazy(() => import("@/pages/casino/roulette"));
+const BlackjackGame = lazy(() => import("@/pages/casino/blackjack"));
+const HiLoGame = lazy(() => import("@/pages/casino/hi-lo"));
+const DragonTigerGame = lazy(() => import("@/pages/casino/dragon-tiger"));
+const PlinkoGame = lazy(() => import("@/pages/casino/plinko"));
+const WheelOfFortuneGame = lazy(() => import("@/pages/casino/wheel-of-fortune"));
+const MinesGame = lazy(() => import("@/pages/casino/mines"));
 const AdminPanel = lazy(() => import("@/pages/admin"));
 const Login = lazy(() => import("@/pages/auth/login"));
 const MyBets = lazy(() => import("@/pages/my-bets"));
@@ -133,6 +139,24 @@ function Router() {
       <Route path="/casino/roulette">
         <ProtectedRoute component={RouletteGame} />
       </Route>
+      <Route path="/casino/blackjack">
+        <ProtectedRoute component={BlackjackGame} />
+      </Route>
+      <Route path="/casino/hi-lo">
+        <ProtectedRoute component={HiLoGame} />
+      </Route>
+      <Route path="/casino/dragon-tiger">
+        <ProtectedRoute component={DragonTigerGame} />
+      </Route>
+      <Route path="/casino/plinko">
+        <ProtectedRoute component={PlinkoGame} />
+      </Route>
+      <Route path="/casino/wheel-of-fortune">
+        <ProtectedRoute component={WheelOfFortuneGame} />
+      </Route>
+      <Route path="/casino/mines">
+        <ProtectedRoute component={MinesGame} />
+      </Route>
       <Route path="/my-bets">
         <ProtectedRoute component={MyBets} />
       </Route>
@@ -146,6 +170,12 @@ function Router() {
         <ProtectedRoute component={MatchDetail} />
       </Route>
       <Route path="/admin">
+        <ProtectedRoute component={AdminPanel} adminOnly={true} />
+      </Route>
+      <Route path="/admin/users">
+        <ProtectedRoute component={AdminPanel} adminOnly={true} />
+      </Route>
+      <Route path="/admin/stats">
         <ProtectedRoute component={AdminPanel} adminOnly={true} />
       </Route>
       <Route>
