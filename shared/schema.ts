@@ -50,6 +50,7 @@ export const matches = pgTable("matches", {
   scoreAway: text("score_away"),
   scoreDetails: text("score_details"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Markets Table
@@ -202,6 +203,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const insertMatchSchema = createInsertSchema(matches).omit({
   id: true,
   createdAt: true,
+   updatedAt: true,
 });
 
 export const insertMarketSchema = createInsertSchema(markets).omit({

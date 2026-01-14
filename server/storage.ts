@@ -28,14 +28,7 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 3,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-  ssl: process.env.NODE_ENV === "production"
-    ? { rejectUnauthorized: false }
-    : false,
 });
-
 
 export const db = drizzle(pool, { schema });
 
@@ -108,6 +101,7 @@ export interface IStorage {
   approveWithdrawalRequest(requestId: string): Promise<{ success: boolean; error?: string }>;
   rejectWithdrawalRequest(requestId: string, notes?: string): Promise<WithdrawalRequest | undefined>;
   getUserWinnings(userId: string): Promise<number>;
+  
 }
 
 export class DatabaseStorage implements IStorage {
@@ -264,10 +258,91 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Bet Operations
+  // async createBet(bet: CreateBet): Promise<Bet> {
+  //   const result = await db.insert(schema.bets).values(bet).returning();
+  //   return result[0];
+  // }
+
   async createBet(bet: CreateBet): Promise<Bet> {
-    const result = await db.insert(schema.bets).values(bet).returning();
-    return result[0];
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 1. Lock match
+    const matchRes = await client.query(
+      "SELECT status FROM matches WHERE id = $1 FOR UPDATE",
+      [bet.matchId]
+    );
+
+    if (!matchRes.rows.length) {
+      throw new Error("Match not found");
+    }
+
+    if (matchRes.rows[0].status !== "LIVE") {
+      throw new Error("Betting closed for this match");
+    }
+
+    // 2. Lock user
+    const userRes = await client.query(
+      "SELECT balance, exposure FROM users WHERE id = $1 FOR UPDATE",
+      [bet.userId]
+    );
+
+    if (!userRes.rows.length) {
+      throw new Error("User not found");
+    }
+
+    const balance = Number(userRes.rows[0].balance);
+    const stake = Number(bet.stake);
+
+    if (balance < stake) {
+      throw new Error("Insufficient balance");
+    }
+
+    // 3. Update wallet
+    await client.query(
+      `
+      UPDATE users
+      SET balance = balance - $1,
+          exposure = exposure + $1
+      WHERE id = $2
+      `,
+      [stake, bet.userId]
+    );
+
+    // 4. Insert bet
+    const betRes = await client.query(
+      `
+      INSERT INTO bets (
+        user_id, match_id, market_id, runner_id, runner_name,
+        type, odds, stake, potential_profit, status
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'OPEN')
+      RETURNING *
+      `,
+      [
+        bet.userId,
+        bet.matchId,
+        bet.marketId,
+        bet.runnerId,
+        bet.runnerName,
+        bet.type,
+        bet.odds,
+        bet.stake,
+        bet.potentialProfit,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return betRes.rows[0];
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
+}
 
   async getUserBets(userId: string): Promise<Bet[]> {
     return await db.select().from(schema.bets).where(eq(schema.bets.userId, userId)).orderBy(desc(schema.bets.createdAt));
@@ -358,7 +433,7 @@ export class DatabaseStorage implements IStorage {
     const betsWon = allBets.filter(b => b.status === 'WON').length;
     const betsLost = allBets.filter(b => b.status === 'LOST').length;
     const totalBetAmount = allBets.reduce((sum, b) => sum + parseFloat(b.stake?.toString() || '0'), 0);
-    const totalWinnings = allBets.filter(b => b.status === 'WON').reduce((sum, b) => sum + parseFloat(b.potentialProfit?.toString() ||'0'), 0);
+    const totalWinnings = allBets.filter(b => b.status === 'WON').reduce((sum, b) => sum + parseFloat(b.potentialProfit?.toString() || '0'), 0);
 
     // Get casino bets from database
     const casinoBetsResult = await db.select().from(schema.casinoBets)
@@ -637,6 +712,22 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return result[0];
   }
+// Add to IStorage interface (around line 32)
+updateMatchStatus(matchId: string, status: 'UPCOMING' | 'LIVE' | 'FINISHED'): Promise<Match | undefined>;
+
+// Add to DatabaseStorage class (around line 240)
+async updateMatchStatus(matchId: string, status: 'UPCOMING' | 'LIVE' | 'FINISHED'): Promise<Match | undefined> {
+  const result = await db
+    .update(schema.matches)
+    .set({ 
+      status,
+      updatedAt: new Date()
+    })
+    .where(eq(schema.matches.id, matchId))
+    .returning();
+  return result[0];
+}
+  
 }
 
 export const storage = new DatabaseStorage();

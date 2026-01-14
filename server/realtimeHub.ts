@@ -1,6 +1,7 @@
 import { Server as HttpServer } from "http";
 import { Server as SocketServer, Socket } from "socket.io";
 import type { Express, RequestHandler } from "express";
+import { liveScoreCoordinator } from "./liveScoreCoordinator";
 import type {
   MatchScoreUpdate,
   BallResult,
@@ -44,18 +45,35 @@ class RealtimeHub {
     this.io.on("connection", (socket: AuthenticatedSocket) => {
       console.log(`[WebSocket] Client connected: ${socket.id}, user: ${socket.userId || 'anonymous'}`);
 
+      // socket.on("subscribe:match", (matchId: string) => {
+      //   socket.join(`match:${matchId}`);
+        
+      //   if (!this.subscribedMatches.has(matchId)) {
+      //     this.subscribedMatches.set(matchId, new Set());
+      //   }
+      //   this.subscribedMatches.get(matchId)!.add(socket.id);
+        
+      //   console.log(`[WebSocket] ${socket.id} subscribed to match: ${matchId}`);
+      // });
       socket.on("subscribe:match", (matchId: string) => {
-        socket.join(`match:${matchId}`);
-        
-        if (!this.subscribedMatches.has(matchId)) {
-          this.subscribedMatches.set(matchId, new Set());
-        }
-        this.subscribedMatches.get(matchId)!.add(socket.id);
-        
-        console.log(`[WebSocket] ${socket.id} subscribed to match: ${matchId}`);
-      });
+  socket.join(`match:${matchId}`);
+
+  if (!this.subscribedMatches.has(matchId)) {
+    this.subscribedMatches.set(matchId, new Set());
+  }
+
+  const subs = this.subscribedMatches.get(matchId)!;
+  subs.add(socket.id);
+
+  if (subs.size === 1) {
+    liveScoreCoordinator.start();
+  }
+});
 
       socket.on("unsubscribe:match", (matchId: string) => {
+        if (this.subscribedMatches.size === 0) {
+  liveScoreCoordinator.stop();
+}
         socket.leave(`match:${matchId}`);
         this.subscribedMatches.get(matchId)?.delete(socket.id);
         console.log(`[WebSocket] ${socket.id} unsubscribed from match: ${matchId}`);

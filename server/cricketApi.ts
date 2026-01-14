@@ -332,34 +332,40 @@ class CricketApiService {
   }
 
   // Fantasy Ball-by-Ball API - Real-time ball data (Premium)
-  async getFantasyBallByBall(matchId: string): Promise<any | null> {
-    const cacheKey = `fantasy-bbb-${matchId}`;
-    const cached = this.getCached<any>(cacheKey);
-    if (cached) return cached;
+  // Replace the getFantasyBallByBall function (around line 154):
+async getFantasyBallByBall(matchId: string): Promise<any | null> {
+  const cacheKey = `fantasy-bbb-${matchId}`;
+  const cached = this.getCached<any>(cacheKey);
+  if (cached) return cached;
 
-    try {
-      const response = await fetch(`${CRICKET_API_BASE}/match_bbb?apikey=${this.getApiKey()}&id=${matchId}`);
-      
-      if (!response.ok) {
-        console.error(`[CricketAPI] Ball-by-Ball API error: ${response.status}`);
-        return null;
-      }
-
-      const data = await response.json();
-      
-      if (data.status !== 'success') {
-        console.error('[CricketAPI] Ball-by-Ball failed:', data);
-        return null;
-      }
-
-      console.log(`[CricketAPI] Fetched ball-by-ball for match ${matchId}`);
-      this.setCache(cacheKey, data.data);
-      return data.data;
-    } catch (error) {
-      console.error('[CricketAPI] Ball-by-Ball error:', error);
+  try {
+    const response = await fetch(`${CRICKET_API_BASE}/match_bbb?apikey=${this.getApiKey()}&id=${matchId}`);
+    
+    if (!response.ok) {
+      // Don't log as error - just return null for missing BBB data
       return null;
     }
+
+    const data = await response.json();
+    
+    if (data.status !== 'success') {
+      // Check if it's a finished match - don't log as error
+      if (data.reason?.includes('Not able to get BBB')) {
+        console.log(`[CricketAPI] No BBB data available for match ${matchId} (likely finished)`);
+        return null;
+      }
+      console.error('[CricketAPI] Ball-by-Ball failed:', data);
+      return null;
+    }
+
+    console.log(`[CricketAPI] Fetched ball-by-ball for match ${matchId}`);
+    this.setCache(cacheKey, data.data);
+    return data.data;
+  } catch (error) {
+    console.error('[CricketAPI] Ball-by-Ball error:', error);
+    return null;
   }
+}
 
   // eCricScore API - Quick live scores
   async getCricScore(matchId: string): Promise<any | null> {
@@ -460,7 +466,28 @@ class CricketApiService {
       return null;
     }
   }
-
+// Add this function to cricketApi.ts:
+async updateMatchStatusFromApi(matchId: string): Promise<'UPCOMING' | 'LIVE' | 'FINISHED'> {
+  try {
+    const cleanId = matchId.replace('cricket-', '');
+    const matchInfo = await this.getMatchInfo(cleanId);
+    
+    if (!matchInfo) return 'UPCOMING';
+    
+    if (matchInfo.matchEnded) return 'FINISHED';
+    if (matchInfo.matchStarted) return 'LIVE';
+    
+    // Check if match time has passed
+    const matchTime = new Date(matchInfo.dateTimeGMT);
+    const now = new Date();
+    if (matchTime <= now) return 'LIVE';
+    
+    return 'UPCOMING';
+  } catch (error) {
+    console.error(`[CricketAPI] Failed to update status for ${matchId}:`, error);
+    return 'UPCOMING';
+  }
+}
   async getSeriesInfo(seriesId: string): Promise<any> {
     const response = await fetch(`${CRICKET_API_BASE}/series_info?apikey=${this.getApiKey()}&id=${seriesId}`);
     

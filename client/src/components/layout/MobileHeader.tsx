@@ -1,15 +1,56 @@
 import { Link, useLocation } from "wouter";
-import { Wallet, Bell, Search, Menu } from "lucide-react";
+import { Wallet, Bell, Search, Menu, Check, Trash2, Trophy, AlertCircle, ArrowDownCircle, ArrowUpCircle, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useState } from "react";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { wsClient } from "@/lib/websocket";
+import type { BetSettlement, WalletUpdate } from "@shared/realtime";
 
 export function MobileHeader() {
-  const { currentUser } = useStore();
+  const { currentUser, notifications, unreadCount, addNotification, markNotificationRead, markAllNotificationsRead, clearNotifications } = useStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [location, setLocation] = useLocation();
+
+  useEffect(() => {
+    wsClient.connect();
+    
+    const unsubBetSettled = wsClient.on<BetSettlement>('bet:settled', (data) => {
+      addNotification({
+        type: data.status === 'WON' ? 'bet_won' : 'bet_lost',
+        title: data.status === 'WON' ? '🎉 Bet Won!' : 'Bet Settled',
+        message: `${data.outcome}: ${data.status} - ₹${data.payout.toFixed(2)}`,
+        amount: data.payout,
+      });
+    });
+
+    const unsubWallet = wsClient.on<WalletUpdate>('wallet:update', (data) => {
+      if (data.change > 0) {
+        addNotification({
+          type: 'balance_update',
+          title: 'Balance Added',
+          message: data.reason || 'Funds credited to your account',
+          amount: data.change,
+        });
+      } else if (data.change < 0) {
+        addNotification({
+          type: 'balance_update',
+          title: 'Balance Deducted',
+          message: data.reason || 'Funds debited from your account',
+          amount: Math.abs(data.change),
+        });
+      }
+    });
+
+    return () => {
+      unsubBetSettled();
+      unsubWallet();
+    };
+  }, [addNotification]);
 
   const menuItems = [
     { href: "/", label: "Dashboard" },
@@ -18,6 +59,19 @@ export function MobileHeader() {
     { href: "/my-bets", label: "My Bets" },
     { href: "/profile", label: "Profile & Wallet" },
   ];
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'bet_won': return <Trophy className="h-4 w-4 text-green-500" />;
+      case 'bet_lost': return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case 'deposit_approved': return <ArrowDownCircle className="h-4 w-4 text-green-500" />;
+      case 'deposit_rejected': return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case 'withdrawal_approved': return <ArrowUpCircle className="h-4 w-4 text-green-500" />;
+      case 'withdrawal_rejected': return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case 'balance_update': return <Coins className="h-4 w-4 text-yellow-500" />;
+      default: return <Bell className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-lg border-b border-border/50">
@@ -94,10 +148,76 @@ export function MobileHeader() {
           <Button variant="ghost" size="icon" className="h-9 w-9" data-testid="button-search">
             <Search className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9 relative" data-testid="button-notifications">
-            <Bell className="h-4 w-4" />
-            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />
-          </Button>
+          
+          <Popover open={isNotifOpen} onOpenChange={setIsNotifOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 relative" data-testid="button-notifications">
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-bold flex items-center justify-center text-primary-foreground">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0" align="end">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h4 className="font-semibold text-sm">Notifications</h4>
+                <div className="flex gap-1">
+                  {notifications.length > 0 && (
+                    <>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={markAllNotificationsRead}>
+                        <Check className="h-3 w-3 mr-1" /> Mark all read
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={clearNotifications}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <ScrollArea className="h-[300px]">
+                {notifications.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No notifications yet</p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {notifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className={cn(
+                          "p-3 hover:bg-accent/50 transition-colors cursor-pointer",
+                          !notif.read && "bg-primary/5"
+                        )}
+                        onClick={() => markNotificationRead(notif.id)}
+                      >
+                        <div className="flex gap-3">
+                          <div className="mt-0.5">{getNotificationIcon(notif.type)}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className={cn("text-sm font-medium", !notif.read && "text-primary")}>{notif.title}</p>
+                            <p className="text-xs text-muted-foreground truncate">{notif.message}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              {new Date(notif.createdAt).toLocaleTimeString()}
+                            </p>
+                          </div>
+                          {notif.amount && (
+                            <span className={cn(
+                              "text-sm font-mono font-bold",
+                              notif.type.includes('won') || notif.type.includes('approved') ? "text-green-500" : "text-muted-foreground"
+                            )}>
+                              ₹{notif.amount.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
     </header>

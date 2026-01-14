@@ -10,7 +10,7 @@ import { cricketApiService } from "./cricketApi";
 import { instanceBettingService } from "./instanceBetting";
 import { instanceSettlementService } from "./instanceSettlementService";
 import { casinoService } from "./casinoService";
-
+import { matchStateManager } from "./matchStateManager";
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -1280,20 +1280,20 @@ export async function registerRoutes(
   });
 
   // Settle stale instance bets (Admin) - manually trigger settlement of old bets
-  app.post("/api/admin/instance/settle-stale", requireAdmin, async (req, res) => {
-    try {
-      console.log("[Admin] Triggering stale bet settlement...");
-      const result = await instanceSettlementService.settleStaleBets();
-      res.json({ 
-        success: true, 
-        message: `Settled ${result.settled} bets, voided ${result.voided} stale bets`,
-        ...result
-      });
-    } catch (error: any) {
-      console.error("[Admin] Stale bet settlement failed:", error.message);
-      res.status(500).json({ error: error.message });
-    }
-  });
+  // app.post("/api/admin/instance/settle-stale", requireAdmin, async (req, res) => {
+  //   try {
+  //     console.log("[Admin] Triggering stale bet settlement...");
+  //     const result = await instanceSettlementService.settleStaleBets();
+  //     res.json({ 
+  //       success: true, 
+  //       message: `Settled ${result.settled} bets, voided ${result.voided} stale bets`,
+  //       ...result
+  //     });
+  //   } catch (error: any) {
+  //     console.error("[Admin] Stale bet settlement failed:", error.message);
+  //     res.status(500).json({ error: error.message });
+  //   }
+  // });
 
   // ============================================
   // Instance Betting Routes
@@ -1521,9 +1521,8 @@ export async function registerRoutes(
             instanceBettingService.suspendAllMarketsForMatch(matchId, criticalCheck.reason || 'Critical moment');
             marketsSuspended = true;
             suspensionReason = criticalCheck.reason;
-          } else {
-            instanceBettingService.resumeAllMarketsForMatch(matchId);
           }
+          // Note: Markets are only opened via generateSyncedMarkets, never resumed
         }
 
         res.json({
@@ -1929,6 +1928,32 @@ export async function registerRoutes(
       res.status(400).json({ error: error.message });
     }
   });
+  // Add to routes.ts
+// Get match state and markets
+app.get("/api/cricket/match-state/:matchId", async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    const state = await matchStateManager.getOrInitialize(matchId);
+    
+    if (!state) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+    
+    // Get active markets
+    instanceBettingService.checkAndCloseExpiredMarkets();
+    const markets = instanceBettingService.getActiveMarketsForMatch(matchId);
+    
+    res.json({
+      state,
+      markets,
+      lastUpdated: new Date(state.lastUpdated).toISOString(),
+      hasLiveData: state.status === 'LIVE'
+    });
+  } catch (error: any) {
+    console.error('Failed to fetch match state:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
   return httpServer;
 }

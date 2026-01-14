@@ -130,15 +130,18 @@ class InstanceBettingService {
     const minOpenBall = currentTotal + BALL_GAP;
     
     this.activeMarkets.forEach((market, marketId) => {
-      if (market.matchId !== matchId || market.status !== 'OPEN') return;
+      if (market.matchId !== matchId) return;
+      // Close OPEN or SUSPENDED markets for past events
+      if (market.status !== 'OPEN' && market.status !== 'SUSPENDED') return;
       
       if (market.instanceType === 'NEXT_BALL') {
         const marketTotal = this.ballToTotal(market.overNumber, market.ballNumber);
         
+        // Close any ball market that is behind the minimum allowed ball
         if (marketTotal < minOpenBall) {
           market.status = 'CLOSED';
           closedMarkets.push(marketId);
-          console.log(`[InstanceBetting] Closed ball market ${marketId} for ${market.overNumber}.${market.ballNumber} (current: ${currentOver}.${currentBall})`);
+          console.log(`[InstanceBetting] Closed ball market ${marketId} for ${market.overNumber}.${market.ballNumber} (current: ${currentOver}.${currentBall}, minOpenBall: ${minOpenBall})`);
         }
       }
       
@@ -146,7 +149,7 @@ class InstanceBettingService {
         if (currentBall >= 5 && market.overNumber === currentOver + 1) {
           market.status = 'CLOSED';
           closedMarkets.push(marketId);
-          console.log(`[InstanceBetting] Closed next-over market for over ${market.overNumber} (6th ball: currentBall=${currentBall})`);
+          console.log(`[InstanceBetting] Closed next-over market for over ${market.overNumber} (6th ball)`);
         }
         if (market.overNumber <= currentOver) {
           market.status = 'CLOSED';
@@ -462,6 +465,11 @@ class InstanceBettingService {
   }
 
   generateSyncedMarkets(matchId: string, currentOver: number, currentBall: number): InstanceMarket[] {
+    const matchState = this.getMatchState(matchId);
+if (!matchState || matchState.matchStarted === false) {
+  return [];
+}
+
     this.updateMatchState(matchId, currentOver, currentBall);
     
     const markets: InstanceMarket[] = [];
@@ -591,18 +599,16 @@ class InstanceBettingService {
     return suspended;
   }
 
-  resumeAllMarketsForMatch(matchId: string): number {
-    let resumed = 0;
+  closeAllMarketsForMatch(matchId: string, reason: string): number {
+    let closed = 0;
     this.activeMarkets.forEach(market => {
-      if (market.matchId === matchId && market.status === 'SUSPENDED') {
-        const now = new Date();
-        if (market.closeTime > now) {
-          market.status = 'OPEN';
-          resumed++;
-        }
+      if (market.matchId === matchId && (market.status === 'OPEN' || market.status === 'SUSPENDED')) {
+        market.status = 'CLOSED';
+        closed++;
+        console.log(`[InstanceBetting] Market ${market.id} closed: ${reason}`);
       }
     });
-    return resumed;
+    return closed;
   }
 
   checkCriticalMoments(
